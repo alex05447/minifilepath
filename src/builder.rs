@@ -3,7 +3,7 @@ use {crate::*, ministr::NonEmptyString, std::path::Path};
 /// Builder for a [`FilePathBuf`].
 ///
 /// Allows constructing valid [`FilePathBuf`]'s and reusing the heap-allocated buffer if necessary.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FilePathBuilder(String);
 
 impl FilePathBuilder {
@@ -56,6 +56,10 @@ impl FilePathBuilder {
     /// Consumes the [`FilePathBuilder`] and, if it is non-empty, returns the built [`FilePathBuf`].
     pub fn build(self) -> Option<FilePathBuf> {
         NonEmptyString::new(self.0).map(FilePathBuf)
+    }
+
+    pub fn into_inner(self) -> String {
+        self.0
     }
 
     pub(crate) fn from(mut buf: String) -> Self {

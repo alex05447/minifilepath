@@ -53,7 +53,7 @@ impl FilePathBuf {
     /// In debug configuration only, panics if `path` is not a valid [`FilePathBuf`].
     pub unsafe fn new_unchecked(path: String) -> Self {
         debug_assert!(
-            FilePath::new(&path).is_ok(),
+            Self::is_valid_filepath(&path),
             "tried to create a `FilePathBuf` from an invalid path"
         );
         Self(NonEmptyString::new_unchecked(path))
@@ -100,6 +100,15 @@ impl FilePathBuf {
     pub fn components(&self) -> impl DoubleEndedIterator<Item = &NonEmptyStr> {
         // Unlike `FilePath`, we may use the simpler iterator because of the `FilePathBuf`'s canonical string representation.
         FilePathIter::new(self.as_file_path())
+    }
+
+    #[cfg(debug_assertions)]
+    fn is_valid_filepath(path: &str) -> bool {
+        if let Some(path_) = Self::new(&path).ok() {
+            path_.as_str() == path
+        } else {
+            false
+        }
     }
 }
 
