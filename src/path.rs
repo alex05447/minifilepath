@@ -5,6 +5,7 @@ use {
         borrow::ToOwned,
         cmp::PartialEq,
         ffi::OsStr,
+        fmt::{Display, Formatter},
         hash::{Hash, Hasher},
         iter::{DoubleEndedIterator, Iterator},
         path::Path,
@@ -35,13 +36,30 @@ impl FilePath {
     /// Tries to create a [`FilePath`] directly from a [`path`](Path).
     ///
     /// Returns an [`error`](FilePathError) if the [`path`](Path) is not a valid [`FilePath`].
-    pub fn try_from<P: AsRef<Path> + ?Sized>(path: &P) -> Result<&Self, FilePathError> {
-        if iterate_path(path.as_ref(), |_| {})? {
+    pub fn new<P: AsRef<Path> + ?Sized>(path: &P) -> Result<&Self, FilePathError> {
+        if Self::is_valid_filepath(path.as_ref()) {
             // We validated it, so it's safe to convert the path directly to a (non-empty) UTF-8 string slice.
             Ok(unsafe { Self::from_path(path.as_ref()) })
         } else {
             Err(FilePathError::EmptyPath)
         }
+    }
+
+    /// Creates a [`FilePath`] directly from a [`path`](Path).
+    ///
+    /// # Safety
+    ///
+    /// The caller guarantees the `path` is a valid [`FilePath`].
+    ///
+    /// # Panics
+    ///
+    /// In debug configuration only, panics if `path` is not a valid [`FilePath`].
+    pub unsafe fn new_unchecked<P: AsRef<Path> + ?Sized>(path: &P) -> &Self {
+        debug_assert!(
+            Self::is_valid_filepath(path.as_ref()),
+            "tried to create a `FilePath` from an invalid path"
+        );
+        Self::from_path(path.as_ref())
     }
 
     pub fn as_path(&self) -> &Path {
@@ -75,6 +93,13 @@ impl FilePath {
     unsafe fn from_path(path: &Path) -> &Self {
         debug_assert!(!path.as_os_str().is_empty());
         &*(path.as_os_str() as *const OsStr as *const str as *const FilePath)
+    }
+
+    fn is_valid_filepath(path: &Path) -> bool {
+        match iterate_path(path, |_| {}) {
+            Ok(true) => true,
+            _ => false,
+        }
     }
 }
 
@@ -111,6 +136,12 @@ impl PartialEq<Self> for FilePath {
 
 impl Eq for FilePath {}
 
+impl Display for FilePathBuf {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -118,17 +149,14 @@ mod tests {
     #[test]
     #[allow(non_snake_case)]
     fn EmptyPath() {
-        assert_eq!(
-            FilePath::try_from("").err().unwrap(),
-            FilePathError::EmptyPath
-        );
+        assert_eq!(FilePath::new("").err().unwrap(), FilePathError::EmptyPath);
     }
 
     #[test]
     #[allow(non_snake_case)]
     fn PrefixedPath() {
         assert_eq!(
-            FilePath::try_from("C:/foo").err().unwrap(),
+            FilePath::new("C:/foo").err().unwrap(),
             FilePathError::PrefixedPath
         );
     }
@@ -138,40 +166,40 @@ mod tests {
     fn InvalidPathComponent() {
         // `RootDir`
         assert_eq!(
-            FilePath::try_from("/foo").err().unwrap(),
+            FilePath::new("/foo").err().unwrap(),
             FilePathError::InvalidPathComponent(PathBuf::new())
         );
 
         // `ParentDir`
         assert_eq!(
-            FilePath::try_from("..\\foo").err().unwrap(),
+            FilePath::new("..\\foo").err().unwrap(),
             FilePathError::InvalidPathComponent(PathBuf::new())
         );
         // `ParentDir`
         assert_eq!(
-            FilePath::try_from("foo/..").err().unwrap(),
+            FilePath::new("foo/..").err().unwrap(),
             FilePathError::InvalidPathComponent(PathBuf::from("foo"))
         );
 
         // `CurDir`
         assert_eq!(
-            FilePath::try_from("./foo\\baz").err().unwrap(),
+            FilePath::new("./foo\\baz").err().unwrap(),
             FilePathError::InvalidPathComponent(PathBuf::new())
         );
         // But this works:
-        let foobaz = FilePath::try_from("foo\\.\\baz").unwrap();
-        assert_eq!(foobaz.to_owned(), FilePathBuf::try_from("foo/baz").unwrap());
+        let foobaz = FilePath::new("foo\\.\\baz").unwrap();
+        assert_eq!(foobaz.to_owned(), FilePathBuf::new("foo/baz").unwrap());
     }
 
     #[test]
     #[allow(non_snake_case)]
     fn EmptyPathComponent() {
         // Repeated path separators are ignored and thus do not generate an empty path component.
-        let foobaz = FilePath::try_from("foo\\\\baz").unwrap();
-        assert_eq!(foobaz.to_owned(), FilePathBuf::try_from("foo/baz").unwrap());
+        let foobaz = FilePath::new("foo\\\\baz").unwrap();
+        assert_eq!(foobaz.to_owned(), FilePathBuf::new("foo/baz").unwrap());
 
-        let foobaz = FilePath::try_from("foo//baz").unwrap();
-        assert_eq!(foobaz.to_owned(), FilePathBuf::try_from("foo/baz").unwrap());
+        let foobaz = FilePath::new("foo//baz").unwrap();
+        assert_eq!(foobaz.to_owned(), FilePathBuf::new("foo/baz").unwrap());
     }
 
     #[test]
@@ -179,7 +207,7 @@ mod tests {
         // `.` in the middle is ignored.
         // Repeated path separators are ignored.
         // Trailing path separators are ignored.
-        let path = FilePath::try_from("foo/./bar//Baz\\\\BILL\\").unwrap();
+        let path = FilePath::new("foo/./bar//Baz\\\\BILL\\").unwrap();
         for (idx, component) in path.components().enumerate() {
             match idx {
                 0 => assert_eq!(component.as_str(), "foo"),
@@ -202,8 +230,8 @@ mod tests {
 
     #[test]
     fn equality() {
-        let l = FilePath::try_from("foo/./bar//Baz\\\\BILL\\").unwrap();
-        let r = FilePath::try_from("foo/bar/Baz/BILL").unwrap();
+        let l = FilePath::new("foo/./bar//Baz\\\\BILL\\").unwrap();
+        let r = FilePath::new("foo/bar/Baz/BILL").unwrap();
         assert_eq!(l, r);
         assert_eq!(l.as_path(), r.as_path());
         // Strings are different ...

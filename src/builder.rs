@@ -30,7 +30,7 @@ impl FilePathBuilder {
     ///
     /// Returns an [`error`](FilePathError) if the `path` contains an invalid component.
     pub fn push<P: AsRef<Path>>(&mut self, path: P) -> Result<(), FilePathError> {
-        FilePath::try_from(path.as_ref()).map(|path| append_file_path_to_string(path, &mut self.0))
+        FilePath::new(path.as_ref()).map(|path| append_file_path_to_string(path, &mut self.0))
     }
 
     /// Attempts to pop the last (leaf) path component of the built [`FilePathBuf`].
