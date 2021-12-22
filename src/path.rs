@@ -37,12 +37,9 @@ impl FilePath {
     ///
     /// Returns an [`error`](FilePathError) if the [`path`](Path) is not a valid [`FilePath`].
     pub fn new<P: AsRef<Path> + ?Sized>(path: &P) -> Result<&Self, FilePathError> {
-        if Self::is_valid_filepath(path.as_ref()) {
-            // We validated it, so it's safe to convert the path directly to a (non-empty) UTF-8 string slice.
-            Ok(unsafe { Self::from_path(path.as_ref()) })
-        } else {
-            Err(FilePathError::EmptyPath)
-        }
+        Self::validate_filepath(path.as_ref())?;
+        // We validated it, so it's safe to convert the path directly to a (non-empty) UTF-8 string slice.
+        Ok(unsafe { Self::from_path(path.as_ref()) })
     }
 
     /// Creates a [`FilePath`] directly from a [`path`](Path).
@@ -77,7 +74,7 @@ impl FilePath {
     /// Returns an iterator over the (non-empty, UTF-8 string) components of the [`FilePath`], root to leaf.
     ///
     /// NOTE: can be reversed via `rev()` to iterate leaf to root.
-    pub fn components(&self) -> impl DoubleEndedIterator<Item = &NonEmptyStr> {
+    pub fn components(&self) -> impl DoubleEndedIterator<Item = FilePathComponent> {
         // Need to use `PathIter` instead of `FilePathIter` because of `std::path::Path` quirks, see the comments for `FilePath`.
         PathIter::new(self)
     }
@@ -93,6 +90,14 @@ impl FilePath {
     unsafe fn from_path(path: &Path) -> &Self {
         debug_assert!(!path.as_os_str().is_empty());
         &*(path.as_os_str() as *const OsStr as *const str as *const FilePath)
+    }
+
+    fn validate_filepath(path: &Path) -> Result<(), FilePathError> {
+        if iterate_path(path, |_| {})? {
+            Ok(())
+        } else {
+            Err(FilePathError::EmptyPath)
+        }
     }
 
     fn is_valid_filepath(path: &Path) -> bool {
@@ -163,32 +168,36 @@ mod tests {
 
     #[test]
     #[allow(non_snake_case)]
-    fn InvalidPathComponent() {
-        // `RootDir`
+    fn RootDirectory() {
         assert_eq!(
             FilePath::new("/foo").err().unwrap(),
-            FilePathError::InvalidPathComponent(PathBuf::new())
+            FilePathError::RootDirectory
         );
+    }
 
-        // `ParentDir`
-        assert_eq!(
-            FilePath::new("..\\foo").err().unwrap(),
-            FilePathError::InvalidPathComponent(PathBuf::new())
-        );
-        // `ParentDir`
-        assert_eq!(
-            FilePath::new("foo/..").err().unwrap(),
-            FilePathError::InvalidPathComponent(PathBuf::from("foo"))
-        );
-
-        // `CurDir`
+    #[test]
+    #[allow(non_snake_case)]
+    fn CurrentDirectory() {
         assert_eq!(
             FilePath::new("./foo\\baz").err().unwrap(),
-            FilePathError::InvalidPathComponent(PathBuf::new())
+            FilePathError::CurrentDirectory(PathBuf::new())
         );
         // But this works:
         let foobaz = FilePath::new("foo\\.\\baz").unwrap();
         assert_eq!(foobaz.to_owned(), FilePathBuf::new("foo/baz").unwrap());
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn ParentDirectory() {
+        assert_eq!(
+            FilePath::new("..\\foo").err().unwrap(),
+            FilePathError::ParentDirectory(PathBuf::new())
+        );
+        assert_eq!(
+            FilePath::new("foo/..").err().unwrap(),
+            FilePathError::ParentDirectory(PathBuf::from("foo"))
+        );
     }
 
     #[test]
@@ -200,6 +209,19 @@ mod tests {
 
         let foobaz = FilePath::new("foo//baz").unwrap();
         assert_eq!(foobaz.to_owned(), FilePathBuf::new("foo/baz").unwrap());
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn InvalidCharacter() {
+        assert_eq!(
+            FilePath::new("foo\\?").err().unwrap(),
+            FilePathError::InvalidCharacter((PathBuf::from("foo"), '?'))
+        );
+        assert_eq!(
+            FilePath::new("foo/BAR/*").err().unwrap(),
+            FilePathError::InvalidCharacter((PathBuf::from("foo/BAR"), '*'))
+        );
     }
 
     #[test]

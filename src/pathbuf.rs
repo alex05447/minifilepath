@@ -42,7 +42,7 @@ impl FilePathBuf {
         builder.build().ok_or(FilePathError::EmptyPath)
     }
 
-    /// Creates a [`FilePathBuf`] directly from a [`path`](Path).
+    /// Creates a [`FilePathBuf`] directly from a `path` string.
     ///
     /// # Safety
     ///
@@ -97,7 +97,7 @@ impl FilePathBuf {
     /// Returns an iterator over the (non-empty, UTF-8 string) components of the [`FilePathBuf`], root to leaf.
     ///
     /// NOTE: can be reversed via `rev()` to iterate leaf to root.
-    pub fn components(&self) -> impl DoubleEndedIterator<Item = &NonEmptyStr> {
+    pub fn components(&self) -> impl DoubleEndedIterator<Item = FilePathComponent> {
         // Unlike `FilePath`, we may use the simpler iterator because of the `FilePathBuf`'s canonical string representation.
         FilePathIter::new(self.as_file_path())
     }
@@ -168,32 +168,36 @@ mod tests {
 
     #[test]
     #[allow(non_snake_case)]
-    fn InvalidPathComponent() {
-        // `RootDir`
+    fn RootDirectory() {
         assert_eq!(
             FilePathBuf::new("/foo").err().unwrap(),
-            FilePathError::InvalidPathComponent(PathBuf::new())
+            FilePathError::RootDirectory
         );
+    }
 
-        // `ParentDir`
-        assert_eq!(
-            FilePathBuf::new("..\\foo").err().unwrap(),
-            FilePathError::InvalidPathComponent(PathBuf::new())
-        );
-        // `ParentDir`
-        assert_eq!(
-            FilePathBuf::new("foo/..").err().unwrap(),
-            FilePathError::InvalidPathComponent(PathBuf::from("foo"))
-        );
-
-        // `CurDir`
+    #[test]
+    #[allow(non_snake_case)]
+    fn CurrentDirectory() {
         assert_eq!(
             FilePathBuf::new("./foo\\baz").err().unwrap(),
-            FilePathError::InvalidPathComponent(PathBuf::new())
+            FilePathError::CurrentDirectory(PathBuf::new())
         );
         // But this works:
         let foobaz = FilePathBuf::new("foo\\.\\baz").unwrap();
         assert_eq!(foobaz.to_owned(), FilePathBuf::new("foo/baz").unwrap());
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn ParentDirectory() {
+        assert_eq!(
+            FilePathBuf::new("..\\foo").err().unwrap(),
+            FilePathError::ParentDirectory(PathBuf::new())
+        );
+        assert_eq!(
+            FilePathBuf::new("foo/..").err().unwrap(),
+            FilePathError::ParentDirectory(PathBuf::from("foo"))
+        );
     }
 
     #[test]
@@ -205,6 +209,19 @@ mod tests {
 
         let foobaz = FilePathBuf::new("foo//baz").unwrap();
         assert_eq!(foobaz.to_owned(), FilePathBuf::new("foo/baz").unwrap());
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn InvalidCharacter() {
+        assert_eq!(
+            FilePathBuf::new("foo\\?").err().unwrap(),
+            FilePathError::InvalidCharacter((PathBuf::from("foo"), '?'))
+        );
+        assert_eq!(
+            FilePathBuf::new("foo/BAR/*").err().unwrap(),
+            FilePathError::InvalidCharacter((PathBuf::from("foo/BAR"), '*'))
+        );
     }
 
     #[test]

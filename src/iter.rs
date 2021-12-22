@@ -18,7 +18,7 @@ impl<'a> FilePathIter<'a> {
 }
 
 impl<'a> Iterator for FilePathIter<'a> {
-    type Item = &'a NonEmptyStr;
+    type Item = FilePathComponent<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         next_impl(&mut self.0, pop_path_component_front)
@@ -33,8 +33,8 @@ impl<'a> DoubleEndedIterator for FilePathIter<'a> {
 
 fn next_impl<'a>(
     src_path: &mut Option<&'a FilePath>,
-    pop: fn(&FilePath) -> (&NonEmptyStr, Option<&FilePath>),
-) -> Option<&'a NonEmptyStr> {
+    pop: fn(&FilePath) -> (FilePathComponent, Option<&FilePath>),
+) -> Option<FilePathComponent<'a>> {
     src_path.map(|path| {
         let (comp, path) = pop(path);
         *src_path = path;
@@ -43,7 +43,7 @@ fn next_impl<'a>(
 }
 
 /// The caller guarantees `path` is a canonical `FilePath`.
-pub(crate) fn pop_path_component_front(path: &FilePath) -> (&NonEmptyStr, Option<&FilePath>) {
+pub(crate) fn pop_path_component_front(path: &FilePath) -> (FilePathComponent, Option<&FilePath>) {
     if let Some((comp, path)) = path.as_str().split_once(SEPARATOR_CHAR) {
         (
             unsafe { NonEmptyStr::new_unchecked(comp) },
@@ -55,7 +55,7 @@ pub(crate) fn pop_path_component_front(path: &FilePath) -> (&NonEmptyStr, Option
 }
 
 /// The caller guarantees `path` is a canonical `FilePath`.
-pub(crate) fn pop_path_component_back(path: &FilePath) -> (&NonEmptyStr, Option<&FilePath>) {
+pub(crate) fn pop_path_component_back(path: &FilePath) -> (FilePathComponent, Option<&FilePath>) {
     if let Some((path, comp)) = path.as_str().rsplit_once(SEPARATOR_CHAR) {
         (
             unsafe { NonEmptyStr::new_unchecked(comp) },
@@ -81,7 +81,7 @@ impl<'a> PathIter<'a> {
 }
 
 impl<'a> Iterator for PathIter<'a> {
-    type Item = &'a NonEmptyStr;
+    type Item = FilePathComponent<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next().map(get_component)
@@ -94,7 +94,7 @@ impl<'a> DoubleEndedIterator for PathIter<'a> {
     }
 }
 
-fn get_component<'a>(component: Component<'a>) -> &'a NonEmptyStr {
+fn get_component<'a>(component: Component<'a>) -> FilePathComponent<'a> {
     match component {
         Component::Normal(component) => match component.to_str() {
             // Must succeed - `FilePath`'s only contain valid (non-empty) path components

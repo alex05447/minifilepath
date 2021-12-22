@@ -7,3 +7,6 @@ edition = "2021"
 
 [dependencies]
 ministr = { path = "../ministr" }
+
+[dev-dependencies]
+ministr_macro = { path = "../ministr_macro" }

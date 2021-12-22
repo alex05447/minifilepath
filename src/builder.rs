@@ -79,7 +79,7 @@ pub(crate) fn append_file_path_to_string(path: &FilePath, string: &mut String) {
     }
 }
 
-fn append_path_component_to_string(component: &NonEmptyStr, string: &mut String) {
+fn append_path_component_to_string(component: FilePathComponent, string: &mut String) {
     if !string.is_empty() {
         string.push(SEPARATOR_CHAR);
     }
@@ -97,9 +97,22 @@ mod tests {
         assert_eq!(builder.len(), 0);
         assert_eq!(builder.as_str(), "");
 
-        assert!(builder.push("C:/foo").is_err());
-        assert!(builder.push("/foo").is_err());
-        assert!(builder.push("foo/../").is_err());
+        assert_eq!(
+            builder.push("C:/foo").err().unwrap(),
+            FilePathError::PrefixedPath
+        );
+        assert_eq!(
+            builder.push("/foo").err().unwrap(),
+            FilePathError::RootDirectory
+        );
+        assert_eq!(
+            builder.push("foo/../").err().unwrap(),
+            FilePathError::ParentDirectory(PathBuf::from("foo"))
+        );
+        assert_eq!(
+            builder.push("./foo").err().unwrap(),
+            FilePathError::CurrentDirectory(PathBuf::new())
+        );
 
         builder.push("foo/./").unwrap();
         assert!(!builder.is_empty());
