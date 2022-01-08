@@ -85,15 +85,15 @@ impl FilePath {
         &*(path.as_str() as *const str as *const FilePath)
     }
 
-    /// The caller guarantees `path` is a valid non-empty UTF-8 string slice.
+    /// The caller guarantees `path` is a valid non-empty UTF-8 string slice and a valid file path.
     /// In this case it is safe to directly convert a non-empty UTF-8 `OsStr` to a `FilePath`.
-    unsafe fn from_path(path: &Path) -> &Self {
+    pub(crate) unsafe fn from_path(path: &Path) -> &Self {
         debug_assert!(!path.as_os_str().is_empty());
         &*(path.as_os_str() as *const OsStr as *const str as *const FilePath)
     }
 
     fn validate_filepath(path: &Path) -> Result<(), FilePathError> {
-        if iterate_path(path, |_| {})? {
+        if iterate_path(path)? {
             Ok(())
         } else {
             Err(FilePathError::EmptyPath)
@@ -101,7 +101,7 @@ impl FilePath {
     }
 
     fn is_valid_filepath(path: &Path) -> bool {
-        match iterate_path(path, |_| {}) {
+        match iterate_path(path) {
             Ok(true) => true,
             _ => false,
         }
@@ -149,7 +149,7 @@ impl Display for FilePathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use {super::*, std::path::PathBuf};
 
     #[test]
     #[allow(non_snake_case)]
@@ -215,12 +215,57 @@ mod tests {
     #[allow(non_snake_case)]
     fn InvalidCharacter() {
         assert_eq!(
-            FilePath::new("foo\\?").err().unwrap(),
-            FilePathError::InvalidCharacter((PathBuf::from("foo"), '?'))
+            FilePath::new("foo\\a?").err().unwrap(),
+            FilePathError::InvalidCharacter((PathBuf::from("foo\\a?"), '?'))
         );
         assert_eq!(
             FilePath::new("foo/BAR/*").err().unwrap(),
-            FilePathError::InvalidCharacter((PathBuf::from("foo/BAR"), '*'))
+            FilePathError::InvalidCharacter((PathBuf::from("foo/BAR/*"), '*'))
+        );
+        assert_eq!(
+            FilePath::new("foo/bar<1>").err().unwrap(),
+            FilePathError::InvalidCharacter((PathBuf::from("foo/bar<1>"), '<'))
+        );
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn ComponentEndsWithAPeriod() {
+        assert_eq!(
+            FilePath::new("foo\\...").err().unwrap(),
+            FilePathError::ComponentEndsWithAPeriod(PathBuf::from("foo\\..."))
+        );
+        // But this is a parent directory.
+        assert_eq!(
+            FilePath::new("foo\\..").err().unwrap(),
+            FilePathError::ParentDirectory(PathBuf::from("foo"))
+        );
+        // And this is a current directory.
+        assert_eq!(
+            FilePath::new("./foo").err().unwrap(),
+            FilePathError::CurrentDirectory(PathBuf::new())
+        );
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn ComponentEndsWithASpace() {
+        assert_eq!(
+            FilePath::new("foo\\bar.txt ").err().unwrap(),
+            FilePathError::ComponentEndsWithASpace(PathBuf::from("foo\\bar.txt "))
+        );
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn ReservedName() {
+        assert_eq!(
+            FilePath::new("foo\\NUL").err().unwrap(),
+            FilePathError::ReservedName(PathBuf::from("foo\\NUL"))
+        );
+        assert_eq!(
+            FilePath::new("BAR/com7").err().unwrap(),
+            FilePathError::ReservedName(PathBuf::from("BAR/com7"))
         );
     }
 

@@ -88,7 +88,7 @@ fn append_path_component_to_string(component: FilePathComponent, string: &mut St
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use {super::*, std::path::PathBuf};
 
     #[test]
     fn builder() {

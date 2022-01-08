@@ -3,7 +3,7 @@ use {
     ministr::NonEmptyStr,
     std::{
         iter::{DoubleEndedIterator, Iterator},
-        path::{Component, Components},
+        path::{Component, Components, Path},
     },
 };
 

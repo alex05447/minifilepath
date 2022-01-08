@@ -215,12 +215,57 @@ mod tests {
     #[allow(non_snake_case)]
     fn InvalidCharacter() {
         assert_eq!(
-            FilePathBuf::new("foo\\?").err().unwrap(),
-            FilePathError::InvalidCharacter((PathBuf::from("foo"), '?'))
+            FilePathBuf::new("foo\\a?").err().unwrap(),
+            FilePathError::InvalidCharacter((PathBuf::from("foo\\a?"), '?'))
         );
         assert_eq!(
             FilePathBuf::new("foo/BAR/*").err().unwrap(),
-            FilePathError::InvalidCharacter((PathBuf::from("foo/BAR"), '*'))
+            FilePathError::InvalidCharacter((PathBuf::from("foo/BAR/*"), '*'))
+        );
+        assert_eq!(
+            FilePathBuf::new("foo/bar<1>").err().unwrap(),
+            FilePathError::InvalidCharacter((PathBuf::from("foo/bar<1>"), '<'))
+        );
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn ComponentEndsWithAPeriod() {
+        assert_eq!(
+            FilePathBuf::new("foo\\...").err().unwrap(),
+            FilePathError::ComponentEndsWithAPeriod(PathBuf::from("foo\\..."))
+        );
+        // But this is a parent directory.
+        assert_eq!(
+            FilePathBuf::new("foo\\..").err().unwrap(),
+            FilePathError::ParentDirectory(PathBuf::from("foo"))
+        );
+        // And this is a current directory.
+        assert_eq!(
+            FilePathBuf::new("./foo").err().unwrap(),
+            FilePathError::CurrentDirectory(PathBuf::new())
+        );
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn ComponentEndsWithASpace() {
+        assert_eq!(
+            FilePathBuf::new("foo\\bar.txt ").err().unwrap(),
+            FilePathError::ComponentEndsWithASpace(PathBuf::from("foo\\bar.txt "))
+        );
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn ReservedName() {
+        assert_eq!(
+            FilePathBuf::new("foo\\NUL").err().unwrap(),
+            FilePathError::ReservedName(PathBuf::from("foo\\NUL"))
+        );
+        assert_eq!(
+            FilePathBuf::new("BAR/com7").err().unwrap(),
+            FilePathError::ReservedName(PathBuf::from("BAR/com7"))
         );
     }
 

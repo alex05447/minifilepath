@@ -20,9 +20,18 @@ pub enum FilePathError {
     /// A path component is empty.
     /// Contains the path to the empty component.
     EmptyComponent(PathBuf),
-    /// Path contains an invalid character.
+    /// Path component contains an invalid character.
     /// Contains the path to the invalid component and the invalid character.
     InvalidCharacter((PathBuf, char)),
+    /// Path component ends with a period.
+    /// Contains the path to the invalid component.
+    ComponentEndsWithAPeriod(PathBuf),
+    /// Path component ends with a space.
+    /// Contains the path to the invalid component.
+    ComponentEndsWithASpace(PathBuf),
+    /// Path component contains a reserved file name.
+    /// Contains the path to the invalid component.
+    ReservedName(PathBuf),
     /// A path component contains invalid UTF-8.
     /// Contains the path to the invalid component.
     InvalidUTF8(PathBuf),
@@ -54,6 +63,17 @@ impl Display for FilePathError {
                 f,
                 "path component at \"{:?}\" contains an invalid character ('{}')",
                 path, c
+            ),
+            ComponentEndsWithAPeriod(path) => {
+                write!(f, "path component at \"{:?}\" ends with a period", path)
+            }
+            ComponentEndsWithASpace(path) => {
+                write!(f, "path component at \"{:?}\" ends with a space", path)
+            }
+            ReservedName(path) => write!(
+                f,
+                "path component at \"{:?}\" contains a reserved name",
+                path
             ),
             InvalidUTF8(path) => {
                 write!(f, "path component at \"{:?}\" contains invalid UTF-8", path)
