@@ -20,6 +20,9 @@ pub enum FilePathError {
     /// A path component is empty.
     /// Contains the path to the empty component.
     EmptyComponent(PathBuf),
+    /// A path component length in bytes is longer than `MAX_COMPONENT_LEN`.
+    /// Contains the path to the component and its length in bytes.
+    ComponentTooLong((PathBuf, usize)),
     /// Path component contains an invalid character.
     /// Contains the path to the invalid component and the invalid character.
     InvalidCharacter((PathBuf, char)),
@@ -37,6 +40,9 @@ pub enum FilePathError {
     InvalidUTF8(PathBuf),
     /// Empty paths are not allowed.
     EmptyPath,
+    /// Path length in bytes is longer than `MAX_PATH_LEN`.
+    /// Contains the length of the path in bytes.
+    PathTooLong(usize),
 }
 
 impl Error for FilePathError {}
@@ -59,6 +65,7 @@ impl Display for FilePathError {
                 path
             ),
             EmptyComponent(path) => write!(f, "path component at \"{:?}\" is empty", path),
+            ComponentTooLong((path, len)) => write!(f, "path component at \"{:?}\" is too long ({} bytes)", path, len),
             InvalidCharacter((path, c)) => write!(
                 f,
                 "path component at \"{:?}\" contains an invalid character ('{}')",
@@ -79,6 +86,7 @@ impl Display for FilePathError {
                 write!(f, "path component at \"{:?}\" contains invalid UTF-8", path)
             }
             EmptyPath => "empty paths are not allowed".fmt(f),
+            PathTooLong(len) => write!(f, "path is too long ({} bytes)", len),
         }
     }
 }

@@ -8,6 +8,12 @@ pub(crate) fn validate_normal_path_component<F: FnOnce() -> PathBuf>(
     component: FilePathComponent,
     f: F,
 ) -> Result<(), FilePathError> {
+    let len = component.len();
+
+    if len > MAX_COMPONENT_LEN {
+        return Err(FilePathError::ComponentTooLong((f(), len)));
+    }
+
     if component.ends_with('.') {
         return Err(FilePathError::ComponentEndsWithAPeriod(f()));
     }
@@ -28,6 +34,7 @@ pub(crate) fn validate_normal_path_component<F: FnOnce() -> PathBuf>(
         let l = l.trim_end();
         let r = r.trim_start();
 
+        // Reserved file names are not allowed, including the case with any extension.
         if l.is_empty() && (r.is_empty() || r.starts_with('.')) {
             return Err(FilePathError::ReservedName(f()));
         }
@@ -284,7 +291,7 @@ pub(crate) fn iterate_path<P: AsRef<Path>>(path: P) -> Result<bool, FilePathErro
 
     let path = path.as_ref();
 
-    let mut non_empty = false;
+    let mut path_len: usize = 0;
 
     let get_path = |idx: usize, include_self: bool| {
         path.components()
@@ -299,11 +306,14 @@ pub(crate) fn iterate_path<P: AsRef<Path>>(path: P) -> Result<bool, FilePathErro
                     let comp = NonEmptyStr::new(comp)
                         .ok_or_else(|| EmptyComponent(get_path(idx, false)))?;
 
-                    dbg!(comp);
-
                     validate_normal_path_component(comp, || get_path(idx, true))?;
 
-                    non_empty = true;
+                    if path_len != 0 {
+                        path_len += 1;
+                    }
+
+                    path_len += comp.len();
+
                 } else {
                     return Err(InvalidUTF8(get_path(idx, false)));
                 }
@@ -315,7 +325,11 @@ pub(crate) fn iterate_path<P: AsRef<Path>>(path: P) -> Result<bool, FilePathErro
         }
     }
 
-    Ok(non_empty)
+    if path_len > MAX_PATH_LEN {
+        return Err(PathTooLong(path_len));
+    }
+
+    Ok(path_len > 0)
 }
 
 pub(crate) fn debug_unreachable(msg: &'static str) -> ! {

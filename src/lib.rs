@@ -14,6 +14,12 @@ pub type FilePathComponent<'a> = &'a ministr::NonEmptyStr;
 
 pub(crate) const SEPARATOR_CHAR: char = '/';
 
+/// Maximum file path component length in bytes (in UTF-8 encoding).
+pub const MAX_COMPONENT_LEN: usize = 255;
+
+/// Maximum total file path length in bytes (in UTF-8 encoding), including the file path component separators.
+pub const MAX_PATH_LEN: usize = 64 * 1024;
+
 /// Attempts to validate the file path `component`.
 ///
 /// Disallows

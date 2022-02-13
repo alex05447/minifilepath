@@ -150,15 +150,6 @@ mod tests {
 
     #[test]
     #[allow(non_snake_case)]
-    fn EmptyPath() {
-        assert_eq!(
-            FilePathBuf::new("").err().unwrap(),
-            FilePathError::EmptyPath
-        );
-    }
-
-    #[test]
-    #[allow(non_snake_case)]
     fn PrefixedPath() {
         assert_eq!(
             FilePathBuf::new("C:/foo").err().unwrap(),
@@ -202,13 +193,30 @@ mod tests {
 
     #[test]
     #[allow(non_snake_case)]
-    fn EmptyPathComponent() {
+    fn EmptyComponent() {
         // Repeated path separators are ignored and thus do not generate an empty path component.
         let foobaz = FilePathBuf::new("foo\\\\baz").unwrap();
         assert_eq!(foobaz.to_owned(), FilePathBuf::new("foo/baz").unwrap());
 
         let foobaz = FilePathBuf::new("foo//baz").unwrap();
         assert_eq!(foobaz.to_owned(), FilePathBuf::new("foo/baz").unwrap());
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn ComponentTooLong() {
+        let invalid_len = MAX_COMPONENT_LEN + 1;
+        let invalid_component = vec![b'a'; invalid_len];
+        let invalid_component = unsafe { std::str::from_utf8_unchecked(&invalid_component) };
+
+        assert_eq!(
+            FilePathBuf::new(invalid_component).err().unwrap(),
+            FilePathError::ComponentTooLong((PathBuf::from(invalid_component), invalid_len))
+        );
+
+        let valid_component = vec![b'a'; MAX_COMPONENT_LEN];
+        let valid_component = unsafe { std::str::from_utf8_unchecked(&valid_component) };
+        FilePathBuf::new(valid_component).unwrap();
     }
 
     #[test]
@@ -267,6 +275,52 @@ mod tests {
             FilePathBuf::new("BAR/com7").err().unwrap(),
             FilePathError::ReservedName(PathBuf::from("BAR/com7"))
         );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    #[allow(non_snake_case)]
+    fn InvalidUTF8() {
+        use std::{ffi::OsString, os::windows::ffi::OsStringExt};
+
+        // "foo/b<?>r"
+        let wchars = [0x0066, 0x006f, 0x006f, 0x002f, 0x0062, 0xD800, 0x0072];
+        let os_string = OsString::from_wide(&wchars[..]);
+        let os_str = os_string.as_os_str();
+        assert_eq!(os_str.to_string_lossy(), "foo/b�r");
+
+        assert_eq!(
+            FilePathBuf::new(os_str).err().unwrap(),
+            FilePathError::InvalidUTF8(PathBuf::from("foo"))
+        );
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn EmptyPath() {
+        assert_eq!(
+            FilePathBuf::new("").err().unwrap(),
+            FilePathError::EmptyPath
+        );
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn PathTooLong() {
+        let path_piece = "a/";
+        let num_path_pieces = MAX_PATH_LEN / path_piece.len();
+
+        let mut valid_path: String = (0..num_path_pieces).map(|_| path_piece).collect();
+
+        FilePathBuf::new(&valid_path).unwrap();
+
+        // <MAX_PATH_LEN>a/ -> trailing `/` is not counted, so total length is `MAX_PATH_LEN + 1`
+        let invalid_path = {
+            valid_path.push_str(path_piece);
+            valid_path
+        };
+
+        assert_eq!(FilePathBuf::new(&invalid_path).err().unwrap(), FilePathError::PathTooLong(MAX_PATH_LEN + 1));
     }
 
     #[test]
