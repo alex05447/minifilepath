@@ -65,7 +65,11 @@ impl Display for FilePathError {
                 path
             ),
             EmptyComponent(path) => write!(f, "path component at \"{:?}\" is empty", path),
-            ComponentTooLong((path, len)) => write!(f, "path component at \"{:?}\" is too long ({} bytes)", path, len),
+            ComponentTooLong((path, len)) => write!(
+                f,
+                "path component at \"{:?}\" is too long ({} bytes)",
+                path, len
+            ),
             InvalidCharacter((path, c)) => write!(
                 f,
                 "path component at \"{:?}\" contains an invalid character ('{}')",

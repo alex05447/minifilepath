@@ -59,7 +59,12 @@ impl FilePathBuf {
         Self(NonEmptyString::new_unchecked(path))
     }
 
-    /// Converts the [`FilePathBuf`] back to a [`FilePathBuilder`], also clearing it,
+    /// Returns the length in bytes of the [`FilePathBuf`]. Always > 0.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Converts the [`FilePathBuf`] back to a [`FilePathBuilder`], without clearing it,
     /// allowing the buffer to be reused.
     pub fn into_builder(self) -> FilePathBuilder {
         FilePathBuilder::from(self.0.into_inner())
@@ -312,7 +317,13 @@ mod tests {
 
         let mut valid_path: String = (0..num_path_pieces).map(|_| path_piece).collect();
 
-        FilePathBuf::new(&valid_path).unwrap();
+        {
+            let mut valid_path = FilePathBuf::new(&valid_path).unwrap().into_builder();
+            assert_eq!(
+                valid_path.push(&path_piece).err().unwrap(),
+                FilePathError::PathTooLong(MAX_PATH_LEN + 1)
+            );
+        }
 
         // <MAX_PATH_LEN>a/ -> trailing `/` is not counted, so total length is `MAX_PATH_LEN + 1`
         let invalid_path = {
@@ -320,7 +331,10 @@ mod tests {
             valid_path
         };
 
-        assert_eq!(FilePathBuf::new(&invalid_path).err().unwrap(), FilePathError::PathTooLong(MAX_PATH_LEN + 1));
+        assert_eq!(
+            FilePathBuf::new(&invalid_path).err().unwrap(),
+            FilePathError::PathTooLong(MAX_PATH_LEN + 1)
+        );
     }
 
     #[test]

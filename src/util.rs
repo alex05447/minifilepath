@@ -313,7 +313,6 @@ pub(crate) fn iterate_path<P: AsRef<Path>>(path: P) -> Result<bool, FilePathErro
                     }
 
                     path_len += comp.len();
-
                 } else {
                     return Err(InvalidUTF8(get_path(idx, false)));
                 }

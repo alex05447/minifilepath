@@ -17,7 +17,7 @@ impl FilePathBuilder {
         Self(String::with_capacity(capacity))
     }
 
-    /// Returns the length in bytes of the built [`FilePathBuf`].
+    /// Returns the length in bytes of the built [`FilePathBuf`]. May be zero for an empty builder.
     pub fn len(&self) -> usize {
         self.0.len()
     }
@@ -30,7 +30,7 @@ impl FilePathBuilder {
     ///
     /// Returns an [`error`](FilePathError) if the `path` contains an invalid component.
     pub fn push<P: AsRef<Path>>(&mut self, path: P) -> Result<(), FilePathError> {
-        FilePath::new(path.as_ref()).map(|path| append_file_path_to_string(path, &mut self.0))
+        append_file_path_to_string(FilePath::new(path.as_ref())?, &mut self.0)
     }
 
     /// Attempts to pop the last (leaf) path component of the built [`FilePathBuf`].
@@ -62,8 +62,7 @@ impl FilePathBuilder {
         self.0
     }
 
-    pub(crate) fn from(mut buf: String) -> Self {
-        buf.clear();
+    pub(crate) fn from(buf: String) -> Self {
         Self(buf)
     }
 
@@ -73,9 +72,25 @@ impl FilePathBuilder {
     }
 }
 
-pub(crate) fn append_file_path_to_string(path: &FilePath, string: &mut String) {
+fn append_file_path_to_string(path: &FilePath, string: &mut String) -> Result<(), FilePathError> {
+    let mut path_len = string.len();
+
     for component in path.components() {
-        append_path_component_to_string(component, string)
+        if path_len != 0 {
+            path_len += 1;
+        }
+
+        path_len += component.len();
+
+        if path_len <= MAX_PATH_LEN {
+            append_path_component_to_string(component, string);
+        }
+    }
+
+    if path_len > MAX_PATH_LEN {
+        Err(FilePathError::PathTooLong(path_len))
+    } else {
+        Ok(())
     }
 }
 
@@ -132,8 +147,14 @@ mod tests {
 
         let path = builder.build().unwrap();
         assert_eq!(path.as_str(), "foo/Bar/baz");
+        let path_len = path.len();
 
-        let builder = path.into_builder();
+        let mut builder = path.into_builder();
+        assert!(!builder.is_empty());
+        assert_eq!(builder.len(), path_len);
+        assert_eq!(builder.as_str(), "foo/Bar/baz");
+
+        builder.clear();
         assert!(builder.is_empty());
         assert_eq!(builder.len(), 0);
         assert_eq!(builder.as_str(), "");

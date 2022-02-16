@@ -59,6 +59,11 @@ impl FilePath {
         Self::from_path(path.as_ref())
     }
 
+    /// Returns the length in bytes of the [`FilePath`]. Always > 0.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
     pub fn as_path(&self) -> &Path {
         Path::new(self.0.as_str())
     }
@@ -119,7 +124,14 @@ impl ToOwned for FilePath {
 
     fn to_owned(&self) -> Self::Owned {
         let mut string = String::with_capacity(self.0.len());
-        append_file_path_to_string(self, &mut string);
+
+        for component in self.components() {
+            if !string.is_empty() {
+                string.push(SEPARATOR_CHAR);
+            }
+            string.push_str(component);
+        }
+
         FilePathBuf(unsafe { NonEmptyString::new_unchecked(string) })
     }
 }
@@ -320,7 +332,10 @@ mod tests {
             valid_path
         };
 
-        assert_eq!(FilePath::new(&invalid_path).err().unwrap(), FilePathError::PathTooLong(MAX_PATH_LEN + 1));
+        assert_eq!(
+            FilePath::new(&invalid_path).err().unwrap(),
+            FilePathError::PathTooLong(MAX_PATH_LEN + 1)
+        );
     }
 
     #[test]

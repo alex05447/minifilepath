@@ -20,6 +20,9 @@ pub const MAX_COMPONENT_LEN: usize = 255;
 /// Maximum total file path length in bytes (in UTF-8 encoding), including the file path component separators.
 pub const MAX_PATH_LEN: usize = 64 * 1024;
 
+/// Maximum number of components a file path may have.
+pub const MAX_NUM_COMPONENTS: usize = MAX_PATH_LEN / 2; // `MAX_PATH_LEN == 8` -> "a/a/a/ab", `MAX_NUM_COMPONENTS == 4 == MAX_PATH_LEN / 2`
+
 /// Attempts to validate the file path `component`.
 ///
 /// Disallows
