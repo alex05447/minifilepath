@@ -56,38 +56,38 @@ impl Display for FilePathError {
             RootDirectory => "paths contains a root directory".fmt(f),
             CurrentDirectory(path) => write!(
                 f,
-                "path component at \"{:?}\" contains a current directory component",
+                "path component at {:?} contains a current directory component",
                 path
             ),
             ParentDirectory(path) => write!(
                 f,
-                "path component at \"{:?}\" contains a parent directory component",
+                "path component at {:?} contains a parent directory component",
                 path
             ),
-            EmptyComponent(path) => write!(f, "path component at \"{:?}\" is empty", path),
+            EmptyComponent(path) => write!(f, "path component at {:?} is empty", path),
             ComponentTooLong((path, len)) => write!(
                 f,
-                "path component at \"{:?}\" is too long ({} bytes)",
+                "path component at {:?} is too long ({} bytes)",
                 path, len
             ),
             InvalidCharacter((path, c)) => write!(
                 f,
-                "path component at \"{:?}\" contains an invalid character ('{}')",
+                "path component at {:?} contains an invalid character ('{}')",
                 path, c
             ),
             ComponentEndsWithAPeriod(path) => {
-                write!(f, "path component at \"{:?}\" ends with a period", path)
+                write!(f, "path component at {:?} ends with a period", path)
             }
             ComponentEndsWithASpace(path) => {
-                write!(f, "path component at \"{:?}\" ends with a space", path)
+                write!(f, "path component at {:?} ends with a space", path)
             }
             ReservedName(path) => write!(
                 f,
-                "path component at \"{:?}\" contains a reserved name",
+                "path component at {:?} contains a reserved name",
                 path
             ),
             InvalidUTF8(path) => {
-                write!(f, "path component at \"{:?}\" contains invalid UTF-8", path)
+                write!(f, "path component at {:?} contains invalid UTF-8", path)
             }
             EmptyPath => "empty paths are not allowed".fmt(f),
             PathTooLong(len) => write!(f, "path is too long ({} bytes)", len),

@@ -15,10 +15,10 @@ pub type FilePathComponent<'a> = &'a ministr::NonEmptyStr;
 pub(crate) const SEPARATOR_CHAR: char = '/';
 
 /// Maximum file path component length in bytes (in UTF-8 encoding).
-pub const MAX_COMPONENT_LEN: usize = 255;
+pub const MAX_COMPONENT_LEN: usize = u8::MAX as usize;
 
 /// Maximum total file path length in bytes (in UTF-8 encoding), including the file path component separators.
-pub const MAX_PATH_LEN: usize = 64 * 1024;
+pub const MAX_PATH_LEN: usize = u16::MAX as usize;
 
 /// Maximum number of components a file path may have.
 pub const MAX_NUM_COMPONENTS: usize = MAX_PATH_LEN / 2; // `MAX_PATH_LEN == 8` -> "a/a/a/ab", `MAX_NUM_COMPONENTS == 4 == MAX_PATH_LEN / 2`
