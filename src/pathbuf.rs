@@ -107,7 +107,6 @@ impl FilePathBuf {
         FilePathIter::new(self.as_file_path())
     }
 
-    #[cfg(debug_assertions)]
     fn is_valid_filepath(path: &str) -> bool {
         if let Some(path_) = Self::new(&path).ok() {
             path_.as_str() == path

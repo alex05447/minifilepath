@@ -333,7 +333,7 @@ pub(crate) fn iterate_path<P: AsRef<Path>>(path: P) -> Result<bool, FilePathErro
 
 pub(crate) fn debug_unreachable(msg: &'static str) -> ! {
     if cfg!(debug_assertions) {
-        unreachable!(msg)
+        unreachable!("{}", msg)
     } else {
         unsafe { std::hint::unreachable_unchecked() }
     }
