@@ -136,6 +136,12 @@ impl Borrow<FilePath> for FilePathBuf {
     }
 }
 
+impl From<&FilePath> for FilePathBuf {
+    fn from(path: &FilePath) -> Self {
+        path.to_owned()
+    }
+}
+
 impl Hash for FilePathBuf {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.as_file_path().hash(state)
