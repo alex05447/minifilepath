@@ -72,6 +72,12 @@ impl FilePathBuilder {
     }
 }
 
+impl Default for FilePathBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn append_file_path_to_string(path: &FilePath, string: &mut String) -> Result<(), FilePathError> {
     let mut path_len = string.len();
 

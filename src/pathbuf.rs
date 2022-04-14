@@ -54,7 +54,7 @@ impl FilePathBuf {
     pub unsafe fn new_unchecked(path: String) -> Self {
         debug_assert!(
             Self::is_valid_filepath(&path),
-            "tried to create a `FilePathBuf` from an invalid path"
+            "tried to create a `FilePathBuf` from an invalid path `String`"
         );
         Self(NonEmptyString::new_unchecked(path))
     }
@@ -65,7 +65,7 @@ impl FilePathBuf {
     }
 
     /// Converts the [`FilePathBuf`] back to a [`FilePathBuilder`], without clearing it,
-    /// allowing the buffer to be reused.
+    /// allowing the buffer and the built path to be reused.
     pub fn into_builder(self) -> FilePathBuilder {
         FilePathBuilder::from(self.0.into_inner())
     }

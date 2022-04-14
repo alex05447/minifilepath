@@ -52,8 +52,8 @@ impl Display for FilePathError {
         use FilePathError::*;
 
         match self {
-            PrefixedPath => "paths contains a prefix".fmt(f),
-            RootDirectory => "paths contains a root directory".fmt(f),
+            PrefixedPath => "path contains a prefix".fmt(f),
+            RootDirectory => "path contains a root directory".fmt(f),
             CurrentDirectory(path) => write!(
                 f,
                 "path component at {:?} contains a current directory component",
