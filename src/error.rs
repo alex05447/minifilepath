@@ -56,35 +56,45 @@ impl Display for FilePathError {
             RootDirectory => "path contains a root directory".fmt(f),
             CurrentDirectory(path) => write!(
                 f,
-                "path component at {:?} contains a current directory component",
-                path
+                "path component at \"{}\" contains a current directory component",
+                path.display()
             ),
             ParentDirectory(path) => write!(
                 f,
-                "path component at {:?} contains a parent directory component",
-                path
+                "path component at \"{}\" contains a parent directory component",
+                path.display()
             ),
             EmptyComponent(path) => write!(f, "path component at {:?} is empty", path),
             ComponentTooLong((path, len)) => write!(
                 f,
-                "path component at {:?} is too long ({} bytes)",
-                path, len
+                "path component at \"{}\" is too long ({} bytes)",
+                path.display(),
+                len
             ),
             InvalidCharacter((path, c)) => write!(
                 f,
-                "path component at {:?} contains an invalid character ('{}')",
-                path, c
+                "path component at \"{}\" contains an invalid character ('{}')",
+                path.display(),
+                c
             ),
             ComponentEndsWithAPeriod(path) => {
-                write!(f, "path component at {:?} ends with a period", path)
+                write!(
+                    f,
+                    "path component at \"{}\" ends with a period",
+                    path.display()
+                )
             }
             ComponentEndsWithASpace(path) => {
-                write!(f, "path component at {:?} ends with a space", path)
+                write!(
+                    f,
+                    "path component at \"{}\" ends with a space",
+                    path.display()
+                )
             }
             ReservedName(path) => write!(
                 f,
-                "path component at {:?} contains a reserved name",
-                path
+                "path component at \"{}\" contains a reserved name",
+                path.display()
             ),
             InvalidUTF8(path) => {
                 write!(f, "path component at {:?} contains invalid UTF-8", path)

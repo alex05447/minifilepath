@@ -79,9 +79,62 @@ impl FilePath {
     /// Returns an iterator over the (non-empty, UTF-8 string) components of the [`FilePath`], root to leaf.
     ///
     /// NOTE: can be reversed via `rev()` to iterate leaf to root.
-    pub fn components(&self) -> impl DoubleEndedIterator<Item = FilePathComponent> {
+    pub fn components(&self) -> impl DoubleEndedIterator<Item = FilePathComponent<'_>> {
         // Need to use `PathIter` instead of `FilePathIter` because of `std::path::Path` quirks, see the comments for `FilePath`.
         PathIter::new(self)
+    }
+
+    /// Returns the file name portion of the [`FilePath`] (i.e. the last/leaf component).
+    ///
+    /// E.g.
+    /// ```
+    /// use {minifilepath::FilePath, ministr_macro::nestr};
+    ///
+    /// assert_eq!(FilePath::new("foo/bar.txt").unwrap().file_name(), nestr!("bar.txt"));
+    /// assert_eq!(FilePath::new("foo/.txt").unwrap().file_name(), nestr!(".txt"));
+    /// assert_eq!(FilePath::new("foo/bar/baz").unwrap().file_name(), nestr!("baz"));
+    /// ```
+    pub fn file_name(&self) -> FilePathComponent<'_> {
+        match self.components().next_back() {
+            Some(file_name) => file_name,
+            None => debug_unreachable("empty `FilePath`'s are invalid"),
+        }
+    }
+
+    /// Returns the file stem portion of the [`FilePath`] (i.e. the non-extension part of the last/leaf component).
+    ///
+    /// NOTE: this differs from standard library behaviour. Also see [`file_name_and_extension`].
+    ///
+    /// E.g.
+    /// ```
+    /// use {minifilepath::FilePath, ministr_macro::nestr};
+    ///
+    /// assert_eq!(FilePath::new("foo/bar.txt").unwrap().file_stem(), Some(nestr!("bar")));
+    /// assert_eq!(FilePath::new("foo/.txt").unwrap().file_stem(), None);
+    /// assert_eq!(FilePath::new("foo/bar/baz").unwrap().file_stem(), Some(nestr!("baz")));
+    /// ```
+    pub fn file_stem(&self) -> Option<FilePathComponent<'_>> {
+        let file_name = self.file_name();
+        file_stem_and_extension(file_name)
+            .map(|file_stem_and_extension| file_stem_and_extension.file_stem)
+            .unwrap_or(Some(file_name))
+    }
+
+    /// Returns the file stem portion of the [`FilePath`] (i.e. the non-extension part of the last/leaf component).
+    ///
+    /// NOTE: this differs from standard library behaviour. Also see [`file_name_and_extension`].
+    ///
+    /// E.g.
+    /// ```
+    /// use {minifilepath::FilePath, ministr_macro::nestr};
+    ///
+    /// assert_eq!(FilePath::new("foo/bar.txt").unwrap().extension(), Some(nestr!("txt")));
+    /// assert_eq!(FilePath::new("foo/.txt").unwrap().extension(), Some(nestr!("txt")));
+    /// assert_eq!(FilePath::new("foo/bar/baz").unwrap().extension(), None);
+    /// ```
+    pub fn extension(&self) -> Option<FilePathComponent<'_>> {
+        file_stem_and_extension(self.file_name())
+            .map(|file_name_and_extension| file_name_and_extension.extension)
     }
 
     /// The caller guarantees `path` is a valid file path.
@@ -320,21 +373,23 @@ mod tests {
     #[allow(non_snake_case)]
     fn PathTooLong() {
         let path_piece = "a/";
-        let num_path_pieces = MAX_PATH_LEN / path_piece.len();
+        // Trailing `/` is not counted, so need to add one extra to overflow.
+        let num_path_pieces = MAX_PATH_LEN / path_piece.len() + 1;
 
         let mut valid_path: String = (0..num_path_pieces).map(|_| path_piece).collect();
+        assert_eq!(valid_path.len(), MAX_PATH_LEN + 1);
 
         FilePath::new(&valid_path).unwrap();
 
-        // <MAX_PATH_LEN>a/ -> trailing `/` is not counted, so total length is `MAX_PATH_LEN + 1`
         let invalid_path = {
             valid_path.push_str(path_piece);
             valid_path
         };
+        assert_eq!(invalid_path.len(), MAX_PATH_LEN + 3);
 
         assert_eq!(
             FilePath::new(&invalid_path).err().unwrap(),
-            FilePathError::PathTooLong(MAX_PATH_LEN + 1)
+            FilePathError::PathTooLong(MAX_PATH_LEN + 2)
         );
     }
 

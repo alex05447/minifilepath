@@ -107,6 +107,59 @@ impl FilePathBuf {
         FilePathIter::new(self.as_file_path())
     }
 
+    /// Returns the file name portion of the [`FilePathBuf`] (i.e. the last/leaf component).
+    ///
+    /// E.g.
+    /// ```
+    /// use {minifilepath::FilePathBuf, ministr_macro::nestr};
+    ///
+    /// assert_eq!(FilePathBuf::new("foo/bar.txt").unwrap().file_name(), nestr!("bar.txt"));
+    /// assert_eq!(FilePathBuf::new("foo/.txt").unwrap().file_name(), nestr!(".txt"));
+    /// assert_eq!(FilePathBuf::new("foo/bar/baz").unwrap().file_name(), nestr!("baz"));
+    /// ```
+    pub fn file_name(&self) -> FilePathComponent<'_> {
+        match self.components().next_back() {
+            Some(file_name) => file_name,
+            None => debug_unreachable("empty `FilePathBuf`'s are invalid"),
+        }
+    }
+
+    /// Returns the file stem portion of the [`FilePathBuf`] (i.e. the non-extension part of the last/leaf component).
+    ///
+    /// NOTE: this differs from standard library behaviour. Also see [`file_name_and_extension`].
+    ///
+    /// E.g.
+    /// ```
+    /// use {minifilepath::FilePathBuf, ministr_macro::nestr};
+    ///
+    /// assert_eq!(FilePathBuf::new("foo/bar.txt").unwrap().file_stem(), Some(nestr!("bar")));
+    /// assert_eq!(FilePathBuf::new("foo/.txt").unwrap().file_stem(), None);
+    /// assert_eq!(FilePathBuf::new("foo/bar/baz").unwrap().file_stem(), Some(nestr!("baz")));
+    /// ```
+    pub fn file_stem(&self) -> Option<FilePathComponent<'_>> {
+        let file_name = self.file_name();
+        file_stem_and_extension(file_name)
+            .map(|file_stem_and_extension| file_stem_and_extension.file_stem)
+            .unwrap_or(Some(file_name))
+    }
+
+    /// Returns the file stem portion of the [`FilePathBuf`] (i.e. the non-extension part of the last/leaf component).
+    ///
+    /// NOTE: this differs from standard library behaviour. Also see [`file_name_and_extension`].
+    ///
+    /// E.g.
+    /// ```
+    /// use {minifilepath::FilePathBuf, ministr_macro::nestr};
+    ///
+    /// assert_eq!(FilePathBuf::new("foo/bar.txt").unwrap().extension(), Some(nestr!("txt")));
+    /// assert_eq!(FilePathBuf::new("foo/.txt").unwrap().extension(), Some(nestr!("txt")));
+    /// assert_eq!(FilePathBuf::new("foo/bar/baz").unwrap().extension(), None);
+    /// ```
+    pub fn extension(&self) -> Option<FilePathComponent<'_>> {
+        file_stem_and_extension(self.file_name())
+            .map(|file_stem_and_extension| file_stem_and_extension.extension)
+    }
+
     fn is_valid_filepath(path: &str) -> bool {
         if let Some(path_) = Self::new(&path).ok() {
             path_.as_str() == path
@@ -318,27 +371,30 @@ mod tests {
     #[allow(non_snake_case)]
     fn PathTooLong() {
         let path_piece = "a/";
-        let num_path_pieces = MAX_PATH_LEN / path_piece.len();
+        // Trailing `/` is not counted, so need to add one extra to overflow.
+        let num_path_pieces = MAX_PATH_LEN / path_piece.len() + 1;
 
         let mut valid_path: String = (0..num_path_pieces).map(|_| path_piece).collect();
+        assert_eq!(valid_path.len(), MAX_PATH_LEN + 1);
 
         {
             let mut valid_path = FilePathBuf::new(&valid_path).unwrap().into_builder();
+            assert_eq!(valid_path.len(), MAX_PATH_LEN);
             assert_eq!(
                 valid_path.push(&path_piece).err().unwrap(),
-                FilePathError::PathTooLong(MAX_PATH_LEN + 1)
+                FilePathError::PathTooLong(MAX_PATH_LEN + 2)
             );
         }
 
-        // <MAX_PATH_LEN>a/ -> trailing `/` is not counted, so total length is `MAX_PATH_LEN + 1`
         let invalid_path = {
             valid_path.push_str(path_piece);
             valid_path
         };
+        assert_eq!(invalid_path.len(), MAX_PATH_LEN + 3);
 
         assert_eq!(
             FilePathBuf::new(&invalid_path).err().unwrap(),
-            FilePathError::PathTooLong(MAX_PATH_LEN + 1)
+            FilePathError::PathTooLong(MAX_PATH_LEN + 2)
         );
     }
 
