@@ -53,7 +53,7 @@ pub fn is_valid_path_component(component: FilePathComponent<'_>) -> bool {
 /// - "foo.txt" -> { file_stem: Some("foo"), extension: "txt" }
 /// - ".gitignore" -> { file_stem: None, extension: "gitgnore" } (NOTE: this is different from standard library behaviour)
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct FileNameAndExtension<'a> {
+pub struct FileStemAndExtension<'a> {
     pub file_stem: Option<FilePathComponent<'a>>,
     pub extension: FilePathComponent<'a>,
 }
@@ -75,7 +75,7 @@ pub struct FileNameAndExtension<'a> {
 /// - "foo" -> `None`
 pub fn file_stem_and_extension(
     component: FilePathComponent<'_>,
-) -> Option<FileNameAndExtension<'_>> {
+) -> Option<FileStemAndExtension<'_>> {
     let mut iter = component.as_str().as_bytes().rsplitn(2, |b| *b == b'.');
     let extension = match iter.next() {
         Some(extension) => extension,
@@ -88,7 +88,7 @@ pub fn file_stem_and_extension(
         // "foo.txt" -> ("foo", "txt") -> `Some((Some("foo"), "txt"))`
         // "foo.bar.txt" -> ("foo.bar", "txt") -> `Some((Some("foo.bar"), "txt"))`
         if let Some(extension) = NonEmptyStr::new(unsafe { str::from_utf8_unchecked(extension) }) {
-            Some(FileNameAndExtension {
+            Some(FileStemAndExtension {
                 file_stem: NonEmptyStr::new(unsafe { str::from_utf8_unchecked(file_name) }),
                 extension,
             })
@@ -112,21 +112,21 @@ mod tests {
     fn file_name_and_extension_test() {
         assert_eq!(
             file_stem_and_extension(nestr!(".txt")),
-            Some(FileNameAndExtension {
+            Some(FileStemAndExtension {
                 file_stem: None,
                 extension: nestr!("txt")
             })
         );
         assert_eq!(
             file_stem_and_extension(nestr!("foo.txt")),
-            Some(FileNameAndExtension {
+            Some(FileStemAndExtension {
                 file_stem: Some(nestr!("foo")),
                 extension: nestr!("txt")
             })
         );
         assert_eq!(
             file_stem_and_extension(nestr!("foo.bar.txt")),
-            Some(FileNameAndExtension {
+            Some(FileStemAndExtension {
                 file_stem: Some(nestr!("foo.bar")),
                 extension: nestr!("txt")
             })
