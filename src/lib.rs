@@ -58,13 +58,13 @@ pub struct FileStemAndExtension<'a> {
     pub extension: FilePathComponent<'a>,
 }
 
-/// Splits a file path `component` into the file stem and extension parts.
+/// Splits the `file_name` into the file stem and extension parts.
 ///
-/// Returns `None` if the `component` does not have an extension (or if it somehow ends with a period).
+/// Returns `None` if the `file_name` does not have an extension (or if it somehow ends with a period).
 /// Returns `Some` if the component has an extension and a (maybe empty) file stem.
 ///
 /// NOTE: this differs from the standard library w.r.t. path components which start with a period.
-/// Standard library considers a path component like ".gitignore" to have a file stem part ".gitignore" and no extension.
+/// Standard library considers a file_name like ".gitignore" to have a file stem part ".gitignore" and no extension.
 /// This function simply treats anything past the last period as an extension, always.
 ///
 /// E.g.:
@@ -74,9 +74,9 @@ pub struct FileStemAndExtension<'a> {
 /// - "foo." -> invalid path (cannot end with a period), but this returns `None`
 /// - "foo" -> `None`
 pub fn file_stem_and_extension(
-    component: FilePathComponent<'_>,
+    file_name: FilePathComponent<'_>,
 ) -> Option<FileStemAndExtension<'_>> {
-    let mut iter = component.as_str().as_bytes().rsplitn(2, |b| *b == b'.');
+    let mut iter = file_name.as_str().as_bytes().rsplitn(2, |b| *b == b'.');
     let extension = match iter.next() {
         Some(extension) => extension,
         None => debug_unreachable("`FilePathComponent`'s must be non-empty"),
