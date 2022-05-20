@@ -103,7 +103,7 @@ impl FilePath {
 
     /// Returns the file stem portion of the [`FilePath`] (i.e. the non-extension part of the last/leaf component).
     ///
-    /// NOTE: this differs from standard library behaviour. Also see [`file_name_and_extension`].
+    /// NOTE: this differs from standard library behaviour. Also see [`file_stem_and_extension`].
     ///
     /// E.g.
     /// ```
@@ -122,7 +122,7 @@ impl FilePath {
 
     /// Returns the file stem portion of the [`FilePath`] (i.e. the non-extension part of the last/leaf component).
     ///
-    /// NOTE: this differs from standard library behaviour. Also see [`file_name_and_extension`].
+    /// NOTE: this differs from standard library behaviour. Also see [`file_stem_and_extension`].
     ///
     /// E.g.
     /// ```
@@ -134,7 +134,7 @@ impl FilePath {
     /// ```
     pub fn extension(&self) -> Option<FilePathComponent<'_>> {
         file_stem_and_extension(self.file_name())
-            .map(|file_name_and_extension| file_name_and_extension.extension)
+            .map(|file_stem_and_extension| file_stem_and_extension.extension)
     }
 
     /// The caller guarantees `path` is a valid file path.
