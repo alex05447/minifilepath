@@ -25,7 +25,7 @@ pub(crate) fn validate_normal_path_component<F: FnOnce() -> PathBuf>(
     let invalid_characters = ['\\', '/', ':', '*', '?', '\"', '<', '>', '|'];
 
     for c in component.chars() {
-        if invalid_characters.contains(&c) {
+        if c.is_ascii_control() || invalid_characters.contains(&c) {
             return Err(FilePathError::InvalidCharacter((f(), c)));
         }
     }
@@ -55,6 +55,7 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
     //     "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
     //     "NUL",
     //     "PRN",
+    //     "CONIN$", "CONOUT$"
     // ];
 
     enum AcceptResult {
@@ -63,12 +64,23 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
         /// Matched a char, match still incomplete, keep processing.
         Accepted,
         /// Matched a char, completed a match.
-        /// Contains the offset in bytes to the start of the match; `3` for `COM?` / `LPT?`, `2` for the rest.
-        AcceptedAndFinished(usize),
+        /// Contains the tuple of
+        /// - offset in bytes back from current character to the start of the match;
+        ///     `2` for the most, `3` for `COM?` / `LPT?`, `5` for `CONIN$`, `6` for `CONOUT$`;
+        /// - offset in bytes back from the current character to the end of the match;
+        ///     always `0` except when matching `CON?`, in which case it's `1` (to support also matching `CONIN$` / `CONOUT$`).
+        AcceptedAndFinished((usize, usize)),
     }
 
     trait ReservedNameMatch {
         fn accept(&mut self, c: char) -> AcceptResult;
+
+        /// Called when no match was found after having processed all characters.
+        ///
+        /// Handles the `CON?` case (to support also matching `CONIN$` / `CONOUT$`).
+        fn finish(&self) -> Option<(usize, usize)> {
+            None
+        }
     }
 
     enum AUX {
@@ -87,7 +99,7 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
                 }
                 Self::U => {
                     if c == 'x' {
-                        return AcceptResult::AcceptedAndFinished(2);
+                        return AcceptResult::AcceptedAndFinished((2, 0));
                     }
                 }
             }
@@ -112,7 +124,7 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
                 }
                 Self::U => {
                     if c == 'l' {
-                        return AcceptResult::AcceptedAndFinished(2);
+                        return AcceptResult::AcceptedAndFinished((2, 0));
                     }
                 }
             }
@@ -137,7 +149,7 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
                 }
                 Self::R => {
                     if c == 'n' {
-                        return AcceptResult::AcceptedAndFinished(2);
+                        return AcceptResult::AcceptedAndFinished((2, 0));
                     }
                 }
             }
@@ -146,13 +158,19 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
         }
     }
 
-    enum CONOrM {
+    enum CONOrMOrINOrOUT {
         C,
         O,
         M,
+        N,
+        NI,
+        NIN,
+        NO,
+        NOU,
+        NOUT,
     }
 
-    impl ReservedNameMatch for CONOrM {
+    impl ReservedNameMatch for CONOrMOrINOrOUT {
         fn accept(&mut self, c: char) -> AcceptResult {
             match self {
                 Self::C => {
@@ -162,15 +180,58 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
                     }
                 }
                 Self::O => match c {
-                    'n' => return AcceptResult::AcceptedAndFinished(2),
+                    'n' => {
+                        *self = Self::N;
+                        return AcceptResult::Accepted;
+                    }
                     'm' => {
                         *self = Self::M;
                         return AcceptResult::Accepted;
                     }
                     _ => {}
                 },
+                Self::N => match c {
+                    'i' => {
+                        *self = Self::NI;
+                        return AcceptResult::Accepted;
+                    }
+                    'o' => {
+                        *self = Self::NO;
+                        return AcceptResult::Accepted;
+                    }
+                    _ => return AcceptResult::AcceptedAndFinished((3, 1)),
+                },
                 Self::M => match c {
-                    '1'..='9' => return AcceptResult::AcceptedAndFinished(3),
+                    '1'..='9' => return AcceptResult::AcceptedAndFinished((3, 0)),
+                    _ => {}
+                },
+                Self::NI => match c {
+                    'n' => {
+                        *self = Self::NIN;
+                        return AcceptResult::Accepted;
+                    }
+                    _ => {}
+                },
+                Self::NIN => match c {
+                    '$' => return AcceptResult::AcceptedAndFinished((5, 0)),
+                    _ => {}
+                },
+                Self::NO => match c {
+                    'u' => {
+                        *self = Self::NOU;
+                        return AcceptResult::Accepted;
+                    }
+                    _ => {}
+                },
+                Self::NOU => match c {
+                    't' => {
+                        *self = Self::NOUT;
+                        return AcceptResult::Accepted;
+                    }
+                    _ => {}
+                },
+                Self::NOUT => match c {
+                    '$' => return AcceptResult::AcceptedAndFinished((6, 0)),
                     _ => {}
                 },
             }
@@ -201,7 +262,7 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
                     }
                 }
                 Self::T => match c {
-                    '1'..='9' => return AcceptResult::AcceptedAndFinished(3),
+                    '1'..='9' => return AcceptResult::AcceptedAndFinished((3, 0)),
                     _ => {}
                 },
             }
@@ -214,7 +275,7 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
         AUX(AUX),
         NUL(NUL),
         PRN(PRN),
-        CONOrM(CONOrM),
+        CONOrMOrINOrOUT(CONOrMOrINOrOUT),
         LPT(LPT),
     }
 
@@ -224,8 +285,18 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
                 Self::AUX(aux) => aux.accept(c),
                 Self::NUL(nul) => nul.accept(c),
                 Self::PRN(prn) => prn.accept(c),
-                Self::CONOrM(conorm) => conorm.accept(c),
+                Self::CONOrMOrINOrOUT(conormorinorout) => conormorinorout.accept(c),
                 Self::LPT(lpt) => lpt.accept(c),
+            }
+        }
+
+        fn finish(&self) -> Option<(usize, usize)> {
+            match self {
+                Self::CONOrMOrINOrOUT(conormorinorout) => match conormorinorout {
+                    CONOrMOrINOrOUT::N => Some((2, 0)),
+                    _ => None,
+                },
+                _ => None,
             }
         }
     }
@@ -241,7 +312,7 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
             r.replace(ReservedName::PRN(PRN::P));
         }
         'c' => {
-            r.replace(ReservedName::CONOrM(CONOrM::C));
+            r.replace(ReservedName::CONOrMOrINOrOUT(CONOrMOrINOrOUT::C));
         }
         'l' => {
             r.replace(ReservedName::LPT(LPT::L));
@@ -251,7 +322,19 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
         }
     };
 
+    let split_at_reserved_name_impl = |idx: usize, start_offset: usize, end_offset: usize| {
+        debug_assert!(idx >= start_offset);
+        let l_end = idx - start_offset;
+        let l = unsafe { component.get_unchecked(..l_end) };
+        let r_start = idx - end_offset + 1;
+        debug_assert!(r_start <= component.len());
+        let r = unsafe { component.get_unchecked(r_start..) };
+        (l, r)
+    };
+
     let mut reserved_name: Option<ReservedName> = None;
+
+    let mut last_idx = 0;
 
     for (idx, c) in component.char_indices() {
         // All reserved names are ASCII.
@@ -264,14 +347,8 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
                         restart(c, &mut reserved_name);
                     }
                     AcceptResult::Accepted => {}
-                    AcceptResult::AcceptedAndFinished(offset) => {
-                        debug_assert!(idx >= offset);
-                        let l_end = idx - offset;
-                        let l = unsafe { component.get_unchecked(..l_end) };
-                        let r_start = idx + 1;
-                        debug_assert!(r_start <= component.len());
-                        let r = unsafe { component.get_unchecked(r_start..) };
-                        return Some((l, r));
+                    AcceptResult::AcceptedAndFinished((start_offset, end_offset)) => {
+                        return Some(split_at_reserved_name_impl(idx, start_offset, end_offset));
                     }
                 }
             } else {
@@ -280,9 +357,16 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
         } else {
             reserved_name.take();
         }
+
+        last_idx = idx;
     }
 
-    None
+    reserved_name
+        .take()
+        .and_then(|reserved_name| reserved_name.finish())
+        .map(|(start_offset, end_offset)| {
+            split_at_reserved_name_impl(last_idx, start_offset, end_offset)
+        })
 }
 
 /// Returns `true` if the path is not empty.
@@ -331,14 +415,6 @@ pub(crate) fn iterate_path<P: AsRef<Path>>(path: P) -> Result<bool, FilePathErro
     Ok(path_len > 0)
 }
 
-pub(crate) fn debug_unreachable(msg: &'static str) -> ! {
-    if cfg!(debug_assertions) {
-        unreachable!("{}", msg)
-    } else {
-        unsafe { std::hint::unreachable_unchecked() }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use {super::*, ministr_macro::nestr};
@@ -359,7 +435,16 @@ mod tests {
         );
         assert_eq!(split_at_reserved_name(nestr!("NUL")).unwrap(), ("", ""));
         assert_eq!(split_at_reserved_name(nestr!("COM7.")).unwrap(), ("", "."));
+        assert_eq!(split_at_reserved_name(nestr!("CON7")).unwrap(), ("", "7"));
         assert_eq!(split_at_reserved_name(nestr!("acon ")).unwrap(), ("a", " "));
+        assert_eq!(
+            split_at_reserved_name(nestr!(" conin$ .txt")).unwrap(),
+            (" ", " .txt")
+        );
+        assert_eq!(
+            split_at_reserved_name(nestr!("CONOUT$.")).unwrap(),
+            ("", ".")
+        );
     }
 
     fn validate_normal_path_component_(component: &NonEmptyStr) -> Result<(), FilePathError> {
@@ -440,6 +525,18 @@ mod tests {
                 .err()
                 .unwrap(),
             FilePathError::InvalidCharacter((PathBuf::new(), '|'))
+        );
+        assert_eq!(
+            validate_normal_path_component_(nestr!("foo\n"))
+                .err()
+                .unwrap(),
+            FilePathError::InvalidCharacter((PathBuf::new(), '\n'))
+        );
+        assert_eq!(
+            validate_normal_path_component_(nestr!("bar\x1b"))
+                .err()
+                .unwrap(),
+            FilePathError::InvalidCharacter((PathBuf::new(), '\x1b'))
         );
 
         // But this works.
@@ -529,10 +626,34 @@ mod tests {
                 .unwrap(),
             FilePathError::ReservedName(PathBuf::new())
         );
+        assert_eq!(
+            validate_normal_path_component_(nestr!("CONIN$.txt"))
+                .err()
+                .unwrap(),
+            FilePathError::ReservedName(PathBuf::new())
+        );
+        assert_eq!(
+            validate_normal_path_component_(nestr!("CONIN$.txt.bmp"))
+                .err()
+                .unwrap(),
+            FilePathError::ReservedName(PathBuf::new())
+        );
+        assert_eq!(
+            validate_normal_path_component_(nestr!("CONOUT$ . bmp"))
+                .err()
+                .unwrap(),
+            FilePathError::ReservedName(PathBuf::new())
+        );
 
         // But this works.
         validate_normal_path_component_(nestr!("faux")).unwrap();
         validate_normal_path_component_(nestr!("COM")).unwrap();
+        validate_normal_path_component_(nestr!("CON1")).unwrap();
+        validate_normal_path_component_(nestr!("CONI")).unwrap();
+        validate_normal_path_component_(nestr!("CONIN")).unwrap();
+        validate_normal_path_component_(nestr!("CONO")).unwrap();
+        validate_normal_path_component_(nestr!("CONOU")).unwrap();
+        validate_normal_path_component_(nestr!("CONOUT")).unwrap();
         validate_normal_path_component_(nestr!("COM71")).unwrap();
         validate_normal_path_component_(nestr!("lpt0")).unwrap();
         validate_normal_path_component_(nestr!(".NUL")).unwrap();

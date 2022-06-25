@@ -1,6 +1,7 @@
 use {
     crate::*,
     ministr::NonEmptyStr,
+    miniunchecked::*,
     std::{
         iter::{DoubleEndedIterator, Iterator},
         path::{Component, Components, Path},
@@ -96,15 +97,13 @@ impl<'a> DoubleEndedIterator for PathIter<'a> {
 
 fn get_component<'a>(component: Component<'a>) -> FilePathComponent<'a> {
     match component {
-        Component::Normal(component) => match component.to_str() {
-            // Must succeed - `FilePath`'s only contain valid (non-empty) path components
-            Some(str) => unsafe { NonEmptyStr::new_unchecked(str) },
-            // Must succeed - `FilePath`'s only contain valid (UTF-8) path components.
-            None => {
-                debug_unreachable("`FilePath`'s must only contain valid (UTF-8) path components")
-            }
+        // Must succeed - `FilePath`'s only contain valid (non-empty) path components
+        Component::Normal(component) => unsafe {
+            NonEmptyStr::new_unchecked(component.to_str().unwrap_unchecked_dbg_msg(
+                "`FilePath`'s must only contain valid (UTF-8) path components",
+            ))
         },
         // Must succeed - `FilePath`'s only contain valid (normal) path components.
-        _ => debug_unreachable("`FilePath`'s must only contain valid (normal) path components"),
+        _ => unreachable_dbg!("`FilePath`'s must only contain valid (normal) path components"),
     }
 }

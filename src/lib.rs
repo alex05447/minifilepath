@@ -26,6 +26,7 @@ pub const MAX_NUM_COMPONENTS: usize = MAX_PATH_LEN / 2; // `MAX_PATH_LEN == 8` -
 
 use {
     ministr::NonEmptyStr,
+    miniunchecked::*,
     std::{path::PathBuf, str},
 };
 
@@ -34,7 +35,7 @@ use {
 /// Disallows
 /// - current (`"."`) / parent (`".."`) directory components,
 /// - components which end in a space (`' '`) or period (`'.'`),
-/// - components which contain invalid characters (`'\'`, `'/'`, `':'`, `'*'`, `'?'`, `'"'`, `'<'`, `'>'`, `'|'`),
+/// - components which contain invalid characters (`'\'`, `'/'`, `':'`, `'*'`, `'?'`, `'"'`, `'<'`, `'>'`, `'|'`) or ASCII control characters,
 /// - components which are reserved file names (case-insensitive) or reserved file names with an extension
 /// (`"AUX"`, `"COM?"`, `"CON"`, `"LPT?"`, `"NUL"`, `"PRN"`, where `?` is one of ASCII digits [`1` .. `9`]).
 pub fn is_valid_path_component(component: FilePathComponent<'_>) -> bool {
@@ -78,9 +79,9 @@ pub fn file_stem_and_extension(
     file_name: FilePathComponent<'_>,
 ) -> Option<FileStemAndExtension<'_>> {
     let mut iter = file_name.as_str().as_bytes().rsplitn(2, |b| *b == b'.');
-    let extension = match iter.next() {
-        Some(extension) => extension,
-        None => debug_unreachable("`FilePathComponent`'s must be non-empty"),
+    let extension = unsafe {
+        iter.next()
+            .unwrap_unchecked_dbg_msg("`FilePathComponent`'s must be non-empty")
     };
 
     if let Some(file_name) = iter.next() {
@@ -126,9 +127,9 @@ pub fn file_path_and_name(file_path: &FilePathBuf) -> Option<FilePathAndName<'_>
         .as_bytes()
         .rsplitn(2, |b| *b == SEPARATOR_BYTE);
 
-    let file_name = match iter.next() {
-        Some(file_name) => file_name,
-        None => debug_unreachable("`FilePathBuf`'s must be non-empty"),
+    let file_name = unsafe {
+        iter.next()
+            .unwrap_unchecked_dbg_msg("`FilePathBuf`'s must be non-empty")
     };
 
     iter.next().map(|file_path| FilePathAndName {

@@ -95,9 +95,10 @@ impl FilePath {
     /// assert_eq!(FilePath::new("foo/bar/baz").unwrap().file_name(), nestr!("baz"));
     /// ```
     pub fn file_name(&self) -> FilePathComponent<'_> {
-        match self.components().next_back() {
-            Some(file_name) => file_name,
-            None => debug_unreachable("empty `FilePath`'s are invalid"),
+        unsafe {
+            self.components()
+                .next_back()
+                .unwrap_unchecked_dbg_msg("empty `FilePath`'s are invalid")
         }
     }
 
