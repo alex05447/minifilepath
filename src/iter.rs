@@ -104,6 +104,8 @@ fn get_component<'a>(component: Component<'a>) -> FilePathComponent<'a> {
             ))
         },
         // Must succeed - `FilePath`'s only contain valid (normal) path components.
-        _ => unreachable_dbg!("`FilePath`'s must only contain valid (normal) path components"),
+        _ => unsafe {
+            unreachable_dbg!("`FilePath`'s must only contain valid (normal) path components")
+        },
     }
 }

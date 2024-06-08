@@ -72,13 +72,16 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
         AcceptedAndFinished((usize, usize)),
     }
 
-    trait ReservedNameMatch {
+    trait ReservedNameMatch
+    where
+        Self: Sized,
+    {
         fn accept(&mut self, c: char) -> AcceptResult;
 
         /// Called when no match was found after having processed all characters.
         ///
         /// Handles the `CON?` case (to support also matching `CONIN$` / `CONOUT$`).
-        fn finish(&self) -> Option<(usize, usize)> {
+        fn finish(self) -> Option<(usize, usize)> {
             None
         }
     }
@@ -290,7 +293,7 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
             }
         }
 
-        fn finish(&self) -> Option<(usize, usize)> {
+        fn finish(self) -> Option<(usize, usize)> {
             match self {
                 Self::CONOrMOrINOrOUT(conormorinorout) => match conormorinorout {
                     CONOrMOrINOrOUT::N => Some((2, 0)),
@@ -363,7 +366,7 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
 
     reserved_name
         .take()
-        .and_then(|reserved_name| reserved_name.finish())
+        .and_then(ReservedName::finish)
         .map(|(start_offset, end_offset)| {
             split_at_reserved_name_impl(last_idx, start_offset, end_offset)
         })

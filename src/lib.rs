@@ -120,7 +120,7 @@ pub struct FilePathAndName<'a> {
 ///
 /// E.g. `"foo/bar"` -> `Some{ "foo", "bar" }`, `"foo/bar/baz.txt"` -> `Some{ "foo/bar", "baz.txt" }`, `"bill.cfg"` -> `None`.
 ///
-/// Returns `None` if the `file_path` does not have an file path part (i.e. it's just a file name).
+/// Returns `None` if the `file_path` does not have the file path part (i.e. it's just a file name).
 pub fn file_path_and_name(file_path: &FilePathBuf) -> Option<FilePathAndName<'_>> {
     let mut iter = file_path
         .as_str()
