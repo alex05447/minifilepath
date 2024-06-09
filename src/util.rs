@@ -50,9 +50,9 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
 
     // let reserved_names = [
     //     "AUX",
-    //     "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+    //     "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "COM0",
     //     "CON",
-    //     "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    //     "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9", "LPT0",
     //     "NUL",
     //     "PRN",
     //     "CONIN$", "CONOUT$"
@@ -205,7 +205,7 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
                     _ => return AcceptResult::AcceptedAndFinished((3, 1)),
                 },
                 Self::M => match c {
-                    '1'..='9' => return AcceptResult::AcceptedAndFinished((3, 0)),
+                    '0'..='9' => return AcceptResult::AcceptedAndFinished((3, 0)),
                     _ => {}
                 },
                 Self::NI => match c {
@@ -265,7 +265,7 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
                     }
                 }
                 Self::T => match c {
-                    '1'..='9' => return AcceptResult::AcceptedAndFinished((3, 0)),
+                    '0'..='9' => return AcceptResult::AcceptedAndFinished((3, 0)),
                     _ => {}
                 },
             }
@@ -437,6 +437,11 @@ mod tests {
             (". ", "t")
         );
         assert_eq!(split_at_reserved_name(nestr!("NUL")).unwrap(), ("", ""));
+        assert_eq!(split_at_reserved_name(nestr!("COM0")).unwrap(), ("", ""));
+        assert_eq!(
+            split_at_reserved_name(nestr!("fooCOM9")).unwrap(),
+            ("foo", "")
+        );
         assert_eq!(split_at_reserved_name(nestr!("COM7.")).unwrap(), ("", "."));
         assert_eq!(split_at_reserved_name(nestr!("CON7")).unwrap(), ("", "7"));
         assert_eq!(split_at_reserved_name(nestr!("acon ")).unwrap(), ("a", " "));
@@ -447,6 +452,11 @@ mod tests {
         assert_eq!(
             split_at_reserved_name(nestr!("CONOUT$.")).unwrap(),
             ("", ".")
+        );
+        assert_eq!(split_at_reserved_name(nestr!("lpT0")).unwrap(), ("", ""));
+        assert_eq!(
+            split_at_reserved_name(nestr!("barlpt9")).unwrap(),
+            ("bar", "")
         );
     }
 
@@ -600,7 +610,13 @@ mod tests {
     #[test]
     fn ReservedName() {
         assert_eq!(
-            validate_normal_path_component_(nestr!("COM7"))
+            validate_normal_path_component_(nestr!("COM0"))
+                .err()
+                .unwrap(),
+            FilePathError::ReservedName(PathBuf::new())
+        );
+        assert_eq!(
+            validate_normal_path_component_(nestr!("COM9"))
                 .err()
                 .unwrap(),
             FilePathError::ReservedName(PathBuf::new())
@@ -624,7 +640,13 @@ mod tests {
             FilePathError::ReservedName(PathBuf::new())
         );
         assert_eq!(
-            validate_normal_path_component_(nestr!("LPT4 .txt.bmp"))
+            validate_normal_path_component_(nestr!("LPT0 .txt.bmp"))
+                .err()
+                .unwrap(),
+            FilePathError::ReservedName(PathBuf::new())
+        );
+        assert_eq!(
+            validate_normal_path_component_(nestr!("LPT9"))
                 .err()
                 .unwrap(),
             FilePathError::ReservedName(PathBuf::new())
@@ -651,6 +673,7 @@ mod tests {
         // But this works.
         validate_normal_path_component_(nestr!("faux")).unwrap();
         validate_normal_path_component_(nestr!("COM")).unwrap();
+        validate_normal_path_component_(nestr!("COM11")).unwrap();
         validate_normal_path_component_(nestr!("CON1")).unwrap();
         validate_normal_path_component_(nestr!("CONI")).unwrap();
         validate_normal_path_component_(nestr!("CONIN")).unwrap();
@@ -658,7 +681,8 @@ mod tests {
         validate_normal_path_component_(nestr!("CONOU")).unwrap();
         validate_normal_path_component_(nestr!("CONOUT")).unwrap();
         validate_normal_path_component_(nestr!("COM71")).unwrap();
-        validate_normal_path_component_(nestr!("lpt0")).unwrap();
+        validate_normal_path_component_(nestr!("LPT")).unwrap();
+        validate_normal_path_component_(nestr!("lpt10")).unwrap();
         validate_normal_path_component_(nestr!(".NUL")).unwrap();
         validate_normal_path_component_(nestr!("foo.PRN")).unwrap();
     }
