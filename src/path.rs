@@ -76,12 +76,14 @@ impl FilePath {
         self.0.as_str()
     }
 
-    /// Returns an iterator over the (non-empty, UTF-8 string) components of the [`FilePath`], root to leaf.
+    /// Returns an [`iterator`](FilePathIter) over the (non-empty, UTF-8 string) components of the [`FilePath`], root to leaf.
+    ///
+    /// NOTE: file name, with extension or not, is a single component.
     ///
     /// NOTE: can be reversed via `rev()` to iterate leaf to root.
-    pub fn components(&self) -> impl DoubleEndedIterator<Item = FilePathComponent<'_>> {
-        // Need to use `PathIter` instead of `FilePathIter` because of `std::path::Path` quirks, see the comments for `FilePath`.
-        PathIter::new(self)
+    pub fn components(&self) -> FilePathIter<'_> {
+        // Need to use `FilePathIter` instead of `FilePathBufIter` because of `std::path::Path` quirks, see the comments for `FilePath`.
+        FilePathIter::new(self)
     }
 
     /// Returns the file name portion of the [`FilePath`] (i.e. the last/leaf component).

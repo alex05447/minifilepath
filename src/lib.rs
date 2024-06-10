@@ -1,4 +1,6 @@
-//! Some simple Rust wrapper types for non-empty, relative, case agnostic UTF-8 file system paths.
+//! # minifilepath
+//!
+//!  Some simple Rust wrapper types for non-empty, relative, case agnostic UTF-8 file system paths.
 
 mod builder;
 mod error;
@@ -7,13 +9,19 @@ mod path;
 mod pathbuf;
 mod util;
 
-pub use {builder::*, error::*, path::*, pathbuf::*};
-pub(crate) use {iter::*, util::*};
+pub(crate) use util::*;
+pub use {
+    builder::*,
+    error::*,
+    iter::{FilePathBufIter, FilePathIter},
+    path::*,
+    pathbuf::*,
+};
 
 pub type FilePathComponent<'a> = &'a ministr::NonEmptyStr;
 
-pub(crate) const SEPARATOR_CHAR: char = '/';
-pub(crate) const SEPARATOR_BYTE: u8 = b'/';
+pub const SEPARATOR_CHAR: char = '/';
+pub const SEPARATOR_BYTE: u8 = b'/';
 
 /// Maximum file path component length in bytes (in UTF-8 encoding).
 pub const MAX_COMPONENT_LEN: usize = u8::MAX as usize;

@@ -3,22 +3,22 @@ use {
     ministr::NonEmptyStr,
     miniunchecked::*,
     std::{
-        iter::{DoubleEndedIterator, Iterator},
+        iter::{DoubleEndedIterator, FusedIterator, Iterator},
         path::{Component, Components, Path},
     },
 };
 
-/// This is a lightweight iterator over the canonical path string using string splitting.
-pub(crate) struct FilePathIter<'a>(Option<&'a FilePath>);
+/// Lightweight double-ended iterator over the canonical [`path string`](FilePathBuf) using string splitting.
+pub struct FilePathBufIter<'a>(Option<&'a FilePath>);
 
-impl<'a> FilePathIter<'a> {
+impl<'a> FilePathBufIter<'a> {
     /// The caller guarantees `path` is canonical (i.e. borrowed from a [`FilePathBuf`]).
     pub(crate) fn new(path: &'a FilePath) -> Self {
         Self(Some(path))
     }
 }
 
-impl<'a> Iterator for FilePathIter<'a> {
+impl<'a> Iterator for FilePathBufIter<'a> {
     type Item = FilePathComponent<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -26,11 +26,13 @@ impl<'a> Iterator for FilePathIter<'a> {
     }
 }
 
-impl<'a> DoubleEndedIterator for FilePathIter<'a> {
+impl<'a> DoubleEndedIterator for FilePathBufIter<'a> {
     fn next_back(&mut self) -> Option<Self::Item> {
         next_impl(&mut self.0, pop_path_component_back)
     }
 }
+
+impl<'a> FusedIterator for FilePathBufIter<'a> {}
 
 fn next_impl<'a>(
     src_path: &mut Option<&'a FilePath>,
@@ -67,21 +69,21 @@ pub(crate) fn pop_path_component_back(path: &FilePath) -> (FilePathComponent, Op
     }
 }
 
-/// This is a full, heavyweight iterator over the (potentially non-canonical) path using `std::path::Components`.
+/// This is a full, heavyweight double-ended iterator over the (potentially non-canonical) path using [`std::path::Components`].
 ///
 /// Used to iterate over [`FilePath`]'s, because those may be constructed from [`std::path::Path`]'s and might
 /// 1) contain `CurDir` components (`.`),
 /// 2) contain repeated path component separators,
 /// 3) use different path component separators depending on the OS.
-pub(crate) struct PathIter<'a>(pub(crate) Components<'a>);
+pub struct FilePathIter<'a>(pub(crate) Components<'a>);
 
-impl<'a> PathIter<'a> {
+impl<'a> FilePathIter<'a> {
     pub(crate) fn new(src: &'a FilePath) -> Self {
         Self(Path::new(src.as_str()).components())
     }
 }
 
-impl<'a> Iterator for PathIter<'a> {
+impl<'a> Iterator for FilePathIter<'a> {
     type Item = FilePathComponent<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -89,11 +91,13 @@ impl<'a> Iterator for PathIter<'a> {
     }
 }
 
-impl<'a> DoubleEndedIterator for PathIter<'a> {
+impl<'a> DoubleEndedIterator for FilePathIter<'a> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.0.next_back().map(get_component)
     }
 }
+
+impl<'a> FusedIterator for FilePathIter<'a> {}
 
 fn get_component<'a>(component: Component<'a>) -> FilePathComponent<'a> {
     match component {

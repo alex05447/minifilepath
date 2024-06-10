@@ -99,12 +99,14 @@ impl FilePathBuf {
         self.0.as_str()
     }
 
-    /// Returns an iterator over the (non-empty, UTF-8 string) components of the [`FilePathBuf`], root to leaf.
+    /// Returns an [`iterator`](FilePathBufIter) over the (non-empty, UTF-8 string) components of the [`FilePathBuf`], root to leaf.
+    ///
+    /// NOTE: file name, with extension or not, is a single component.
     ///
     /// NOTE: can be reversed via `rev()` to iterate leaf to root.
-    pub fn components(&self) -> impl DoubleEndedIterator<Item = FilePathComponent> {
+    pub fn components(&self) -> FilePathBufIter<'_> {
         // Unlike `FilePath`, we may use the simpler iterator because of the `FilePathBuf`'s canonical string representation.
-        FilePathIter::new(self.as_file_path())
+        FilePathBufIter::new(self.as_file_path())
     }
 
     /// Returns the file name portion of the [`FilePathBuf`] (i.e. the last/leaf component).

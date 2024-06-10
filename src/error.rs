@@ -1,10 +1,13 @@
-use std::{
-    error::Error,
-    fmt::{Display, Formatter},
-    path::PathBuf,
+use {
+    crate::MAX_PATH_LEN,
+    std::{
+        error::Error,
+        fmt::{Display, Formatter},
+        path::PathBuf,
+    },
 };
 
-/// An error returned by methods which construct [`FilePath`](struct.FilePath.html)'s / [`FilePathBuf`](struct.FilePathBuf.html)'s.
+/// An error returned by methods which construct [`FilePath`](crate::FilePath)'s / [`FilePathBuf`](crate::FilePathBuf)'s.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum FilePathError {
     /// Path contains a prefix.
@@ -100,7 +103,10 @@ impl Display for FilePathError {
                 write!(f, "path component at {:?} contains invalid UTF-8", path)
             }
             EmptyPath => "empty paths are not allowed".fmt(f),
-            PathTooLong(len) => write!(f, "path is too long ({} bytes)", len),
+            PathTooLong(len) => write!(
+                f,
+                "path is too long ({len} bytes, `MAX_PATH_LEN` is {MAX_PATH_LEN})"
+            ),
         }
     }
 }
