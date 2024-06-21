@@ -1,3 +1,3 @@
 # minifilepath
 
-Some simple Rust wrapper types for non-empty, relative, case agnostic UTF-8 file system paths.
+Some simple Rust wrapper types for non-empty, relative, case-sensitive, UTF-8 file paths.

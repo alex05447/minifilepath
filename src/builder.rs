@@ -12,7 +12,7 @@ impl FilePathBuilder {
         Self(String::new())
     }
 
-    /// Creates an empty [`FilePathBuilder`] with `capacity` bytes reserved.
+    /// Creates an empty [`FilePathBuilder`] with at least `capacity` bytes reserved.
     pub fn with_capacity(capacity: usize) -> Self {
         Self(String::with_capacity(capacity))
     }

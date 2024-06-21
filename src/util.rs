@@ -4,7 +4,7 @@ use {
     std::path::{Component, Path, PathBuf},
 };
 
-pub(crate) fn validate_normal_path_component<F: FnOnce() -> PathBuf>(
+pub(crate) fn validate_path_component<F: FnOnce() -> PathBuf>(
     component: FilePathComponent,
     f: F,
 ) -> Result<(), FilePathError> {
@@ -66,7 +66,7 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
         /// Matched a char, completed a match.
         /// Contains the tuple of
         /// - offset in bytes back from current character to the start of the match;
-        ///     `2` for the most, `3` for `COM?` / `LPT?`, `5` for `CONIN$`, `6` for `CONOUT$`;
+        ///     `2` for most, `3` for `COM?` / `LPT?`, `5` for `CONIN$`, `6` for `CONOUT$`;
         /// - offset in bytes back from the current character to the end of the match;
         ///     always `0` except when matching `CON?`, in which case it's `1` (to support also matching `CONIN$` / `CONOUT$`).
         AcceptedAndFinished((usize, usize)),
@@ -372,8 +372,7 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
         })
 }
 
-/// Returns `true` if the path is not empty.
-pub(crate) fn iterate_path<P: AsRef<Path>>(path: P) -> Result<bool, FilePathError> {
+pub(crate) fn validate_path<P: AsRef<Path>>(path: P) -> Result<(), FilePathError> {
     use FilePathError::*;
 
     let path = path.as_ref();
@@ -393,8 +392,9 @@ pub(crate) fn iterate_path<P: AsRef<Path>>(path: P) -> Result<bool, FilePathErro
                     let comp = NonEmptyStr::new(comp)
                         .ok_or_else(|| EmptyComponent(get_path(idx, false)))?;
 
-                    validate_normal_path_component(comp, || get_path(idx, true))?;
+                    validate_path_component(comp, || get_path(idx, true))?;
 
+                    // Count the separator.
                     if path_len != 0 {
                         path_len += 1;
                     }
@@ -411,11 +411,13 @@ pub(crate) fn iterate_path<P: AsRef<Path>>(path: P) -> Result<bool, FilePathErro
         }
     }
 
-    if path_len > MAX_PATH_LEN {
-        return Err(PathTooLong(path_len));
+    if path_len == 0 {
+        Err(EmptyPath)
+    } else if path_len > MAX_PATH_LEN {
+        Err(PathTooLong(path_len))
+    } else {
+        Ok(())
     }
-
-    Ok(path_len > 0)
 }
 
 #[cfg(test)]
@@ -460,122 +462,90 @@ mod tests {
         );
     }
 
-    fn validate_normal_path_component_(component: &NonEmptyStr) -> Result<(), FilePathError> {
-        validate_normal_path_component(component, || PathBuf::new())
+    fn validate_path_component_(component: &NonEmptyStr) -> Result<(), FilePathError> {
+        validate_path_component(component, || PathBuf::new())
     }
 
     #[allow(non_snake_case)]
     #[test]
     fn InvalidCharacter() {
         assert_eq!(
-            validate_normal_path_component_(nestr!("/foo"))
-                .err()
-                .unwrap(),
+            validate_path_component_(nestr!("/foo")).err().unwrap(),
             FilePathError::InvalidCharacter((PathBuf::new(), '/'))
         );
         assert_eq!(
-            validate_normal_path_component_(nestr!("f/oo"))
-                .err()
-                .unwrap(),
+            validate_path_component_(nestr!("f/oo")).err().unwrap(),
             FilePathError::InvalidCharacter((PathBuf::new(), '/'))
         );
         assert_eq!(
-            validate_normal_path_component_(nestr!("foo\\"))
-                .err()
-                .unwrap(),
+            validate_path_component_(nestr!("foo\\")).err().unwrap(),
             FilePathError::InvalidCharacter((PathBuf::new(), '\\'))
         );
 
         assert_eq!(
-            validate_normal_path_component_(nestr!("C:foo"))
-                .err()
-                .unwrap(),
+            validate_path_component_(nestr!("C:foo")).err().unwrap(),
             FilePathError::InvalidCharacter((PathBuf::new(), ':'))
         );
         assert_eq!(
-            validate_normal_path_component_(nestr!(":foo"))
-                .err()
-                .unwrap(),
+            validate_path_component_(nestr!(":foo")).err().unwrap(),
             FilePathError::InvalidCharacter((PathBuf::new(), ':'))
         );
 
         assert_eq!(
-            validate_normal_path_component_(nestr!("\"foo\""))
-                .err()
-                .unwrap(),
+            validate_path_component_(nestr!("\"foo\"")).err().unwrap(),
             FilePathError::InvalidCharacter((PathBuf::new(), '\"'))
         );
 
         assert_eq!(
-            validate_normal_path_component_(nestr!("foo?"))
-                .err()
-                .unwrap(),
+            validate_path_component_(nestr!("foo?")).err().unwrap(),
             FilePathError::InvalidCharacter((PathBuf::new(), '?'))
         );
 
         assert_eq!(
-            validate_normal_path_component_(nestr!("f*oo"))
-                .err()
-                .unwrap(),
+            validate_path_component_(nestr!("f*oo")).err().unwrap(),
             FilePathError::InvalidCharacter((PathBuf::new(), '*'))
         );
 
         assert_eq!(
-            validate_normal_path_component_(nestr!("foo<"))
-                .err()
-                .unwrap(),
+            validate_path_component_(nestr!("foo<")).err().unwrap(),
             FilePathError::InvalidCharacter((PathBuf::new(), '<'))
         );
         assert_eq!(
-            validate_normal_path_component_(nestr!("foo>"))
-                .err()
-                .unwrap(),
+            validate_path_component_(nestr!("foo>")).err().unwrap(),
             FilePathError::InvalidCharacter((PathBuf::new(), '>'))
         );
 
         assert_eq!(
-            validate_normal_path_component_(nestr!("foo|"))
-                .err()
-                .unwrap(),
+            validate_path_component_(nestr!("foo|")).err().unwrap(),
             FilePathError::InvalidCharacter((PathBuf::new(), '|'))
         );
         assert_eq!(
-            validate_normal_path_component_(nestr!("foo\n"))
-                .err()
-                .unwrap(),
+            validate_path_component_(nestr!("foo\n")).err().unwrap(),
             FilePathError::InvalidCharacter((PathBuf::new(), '\n'))
         );
         assert_eq!(
-            validate_normal_path_component_(nestr!("bar\x1b"))
-                .err()
-                .unwrap(),
+            validate_path_component_(nestr!("bar\x1b")).err().unwrap(),
             FilePathError::InvalidCharacter((PathBuf::new(), '\x1b'))
         );
 
         // But this works.
-        assert!(validate_normal_path_component_(nestr!("foo")).is_ok());
-        assert!(validate_normal_path_component_(nestr!("βαρ")).is_ok());
+        assert!(validate_path_component_(nestr!("foo")).is_ok());
+        assert!(validate_path_component_(nestr!("βαρ")).is_ok());
     }
 
     #[allow(non_snake_case)]
     #[test]
     fn ComponentEndsWithAPeriod() {
         assert_eq!(
-            validate_normal_path_component_(nestr!("..."))
-                .err()
-                .unwrap(),
+            validate_path_component_(nestr!("...")).err().unwrap(),
             FilePathError::ComponentEndsWithAPeriod(PathBuf::new())
         );
         assert_eq!(
-            validate_normal_path_component_(nestr!("foo."))
-                .err()
-                .unwrap(),
+            validate_path_component_(nestr!("foo.")).err().unwrap(),
             FilePathError::ComponentEndsWithAPeriod(PathBuf::new())
         );
         assert_eq!(
-            validate_normal_path_component_(nestr!("NUL."))
-                .err()
-                .unwrap(),
+            validate_path_component_(nestr!("NUL.")).err().unwrap(),
             FilePathError::ComponentEndsWithAPeriod(PathBuf::new())
         );
     }
@@ -584,106 +554,88 @@ mod tests {
     #[test]
     fn ComponentEndsWithASpace() {
         assert_eq!(
-            validate_normal_path_component_(nestr!("foo "))
-                .err()
-                .unwrap(),
+            validate_path_component_(nestr!("foo ")).err().unwrap(),
             FilePathError::ComponentEndsWithASpace(PathBuf::new())
         );
         assert_eq!(
-            validate_normal_path_component_(nestr!("foo . "))
-                .err()
-                .unwrap(),
+            validate_path_component_(nestr!("foo . ")).err().unwrap(),
             FilePathError::ComponentEndsWithASpace(PathBuf::new())
         );
         assert_eq!(
-            validate_normal_path_component_(nestr!("LPT7 "))
-                .err()
-                .unwrap(),
+            validate_path_component_(nestr!("LPT7 ")).err().unwrap(),
             FilePathError::ComponentEndsWithASpace(PathBuf::new())
         );
 
         // But this works.
-        validate_normal_path_component_(nestr!("foo .txt")).unwrap();
+        validate_path_component_(nestr!("foo .txt")).unwrap();
     }
 
     #[allow(non_snake_case)]
     #[test]
     fn ReservedName() {
         assert_eq!(
-            validate_normal_path_component_(nestr!("COM0"))
+            validate_path_component_(nestr!("COM0")).err().unwrap(),
+            FilePathError::ReservedName(PathBuf::new())
+        );
+        assert_eq!(
+            validate_path_component_(nestr!("COM9")).err().unwrap(),
+            FilePathError::ReservedName(PathBuf::new())
+        );
+        assert_eq!(
+            validate_path_component_(nestr!("CON")).err().unwrap(),
+            FilePathError::ReservedName(PathBuf::new())
+        );
+        assert_eq!(
+            validate_path_component_(nestr!(" AUX")).err().unwrap(),
+            FilePathError::ReservedName(PathBuf::new())
+        );
+        assert_eq!(
+            validate_path_component_(nestr!("NUL.txt")).err().unwrap(),
+            FilePathError::ReservedName(PathBuf::new())
+        );
+        assert_eq!(
+            validate_path_component_(nestr!("LPT0 .txt.bmp"))
                 .err()
                 .unwrap(),
             FilePathError::ReservedName(PathBuf::new())
         );
         assert_eq!(
-            validate_normal_path_component_(nestr!("COM9"))
+            validate_path_component_(nestr!("LPT9")).err().unwrap(),
+            FilePathError::ReservedName(PathBuf::new())
+        );
+        assert_eq!(
+            validate_path_component_(nestr!("CONIN$.txt"))
                 .err()
                 .unwrap(),
             FilePathError::ReservedName(PathBuf::new())
         );
         assert_eq!(
-            validate_normal_path_component_(nestr!("CON"))
+            validate_path_component_(nestr!("CONIN$.txt.bmp"))
                 .err()
                 .unwrap(),
             FilePathError::ReservedName(PathBuf::new())
         );
         assert_eq!(
-            validate_normal_path_component_(nestr!(" AUX"))
-                .err()
-                .unwrap(),
-            FilePathError::ReservedName(PathBuf::new())
-        );
-        assert_eq!(
-            validate_normal_path_component_(nestr!("NUL.txt"))
-                .err()
-                .unwrap(),
-            FilePathError::ReservedName(PathBuf::new())
-        );
-        assert_eq!(
-            validate_normal_path_component_(nestr!("LPT0 .txt.bmp"))
-                .err()
-                .unwrap(),
-            FilePathError::ReservedName(PathBuf::new())
-        );
-        assert_eq!(
-            validate_normal_path_component_(nestr!("LPT9"))
-                .err()
-                .unwrap(),
-            FilePathError::ReservedName(PathBuf::new())
-        );
-        assert_eq!(
-            validate_normal_path_component_(nestr!("CONIN$.txt"))
-                .err()
-                .unwrap(),
-            FilePathError::ReservedName(PathBuf::new())
-        );
-        assert_eq!(
-            validate_normal_path_component_(nestr!("CONIN$.txt.bmp"))
-                .err()
-                .unwrap(),
-            FilePathError::ReservedName(PathBuf::new())
-        );
-        assert_eq!(
-            validate_normal_path_component_(nestr!("CONOUT$ . bmp"))
+            validate_path_component_(nestr!("CONOUT$ . bmp"))
                 .err()
                 .unwrap(),
             FilePathError::ReservedName(PathBuf::new())
         );
 
         // But this works.
-        validate_normal_path_component_(nestr!("faux")).unwrap();
-        validate_normal_path_component_(nestr!("COM")).unwrap();
-        validate_normal_path_component_(nestr!("COM11")).unwrap();
-        validate_normal_path_component_(nestr!("CON1")).unwrap();
-        validate_normal_path_component_(nestr!("CONI")).unwrap();
-        validate_normal_path_component_(nestr!("CONIN")).unwrap();
-        validate_normal_path_component_(nestr!("CONO")).unwrap();
-        validate_normal_path_component_(nestr!("CONOU")).unwrap();
-        validate_normal_path_component_(nestr!("CONOUT")).unwrap();
-        validate_normal_path_component_(nestr!("COM71")).unwrap();
-        validate_normal_path_component_(nestr!("LPT")).unwrap();
-        validate_normal_path_component_(nestr!("lpt10")).unwrap();
-        validate_normal_path_component_(nestr!(".NUL")).unwrap();
-        validate_normal_path_component_(nestr!("foo.PRN")).unwrap();
+        validate_path_component_(nestr!("faux")).unwrap();
+        validate_path_component_(nestr!("COM")).unwrap();
+        validate_path_component_(nestr!("COM11")).unwrap();
+        validate_path_component_(nestr!("CON1")).unwrap();
+        validate_path_component_(nestr!("CONI")).unwrap();
+        validate_path_component_(nestr!("CONIN")).unwrap();
+        validate_path_component_(nestr!("CONO")).unwrap();
+        validate_path_component_(nestr!("CONOU")).unwrap();
+        validate_path_component_(nestr!("CONOUT")).unwrap();
+        validate_path_component_(nestr!("COM71")).unwrap();
+        validate_path_component_(nestr!("LPT")).unwrap();
+        validate_path_component_(nestr!("lpt10")).unwrap();
+        validate_path_component_(nestr!(".NUL")).unwrap();
+        validate_path_component_(nestr!("foo.PRN")).unwrap();
     }
 }

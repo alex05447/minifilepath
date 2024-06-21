@@ -1,6 +1,6 @@
 //! # minifilepath
 //!
-//!  Some simple Rust wrapper types for non-empty, relative, case agnostic UTF-8 file system paths.
+//! Some simple Rust wrapper types for non-empty, relative, case-sensitive, UTF-8 file paths.
 
 mod builder;
 mod error;
@@ -52,7 +52,7 @@ pub fn is_valid_path_component(component: FilePathComponent<'_>) -> bool {
     } else if component == ".." {
         return false;
     } else {
-        validate_normal_path_component(component, || PathBuf::new()).is_ok()
+        validate_path_component(component, || PathBuf::new()).is_ok()
     }
 }
 

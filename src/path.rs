@@ -4,7 +4,7 @@ use {
     std::{
         borrow::ToOwned,
         cmp::PartialEq,
-        ffi::OsStr,
+        convert::TryFrom,
         fmt::{Display, Formatter},
         hash::{Hash, Hasher},
         iter::{DoubleEndedIterator, Iterator},
@@ -15,12 +15,12 @@ use {
 /// Non-empty, relative, case agnostic UTF-8 file system path.
 /// Every [`FilePath`] is a valid [`Path`], but not vice-versa.
 ///
-/// If [`created`](#method.try_from) directly from a [`Path`]:
+/// If [`created`](Self::new) directly from a [`Path`]:
 /// 1) may use a platform-specific path separator (backslash or a forward slash);
 /// 2) may contain repeated path separators;
 /// 3) may contain mid-path "current directory" components (`.`).
 ///
-/// NOTE: [`FilePath`]'s are considered equal if they produce the same [`components`](#method.components),
+/// NOTE: [`FilePath`]'s are considered equal if they produce the same [`components`](Self::components),
 /// even if the underlying strings are not equal (i.e. similar to [`std::path::Path`]).
 ///
 /// Hashed componentwise, not as the string representation.
@@ -37,9 +37,10 @@ impl FilePath {
     ///
     /// Returns an [`error`](FilePathError) if the [`path`](Path) is not a valid [`FilePath`].
     pub fn new<P: AsRef<Path> + ?Sized>(path: &P) -> Result<&Self, FilePathError> {
-        Self::validate_filepath(path.as_ref())?;
-        // We validated it, so it's safe to convert the path directly to a (non-empty) UTF-8 string slice.
-        Ok(unsafe { Self::from_path(path.as_ref()) })
+        validate_path(path.as_ref())?;
+        unsafe {
+            Self::from_path(path.as_ref()).ok_or_else(|| FilePathError::InvalidUTF8(PathBuf::new()))
+        }
     }
 
     /// Creates a [`FilePath`] directly from a [`path`](Path).
@@ -53,10 +54,10 @@ impl FilePath {
     /// In debug configuration only, panics if `path` is not a valid [`FilePath`].
     pub unsafe fn new_unchecked<P: AsRef<Path> + ?Sized>(path: &P) -> &Self {
         debug_assert!(
-            Self::is_valid_filepath(path.as_ref()),
+            validate_path(path.as_ref()).is_ok(),
             "tried to create a `FilePath` from an invalid path"
         );
-        Self::from_path(path.as_ref())
+        Self::from_path_unchecked(path.as_ref())
     }
 
     /// Returns the length in bytes of the [`FilePath`]. Always > 0.
@@ -146,26 +147,37 @@ impl FilePath {
         &*(path.as_str() as *const str as *const FilePath)
     }
 
-    /// The caller guarantees `path` is a valid non-empty UTF-8 string slice and a valid file path.
+    /// The caller guarantees `path` is non-empty and a valid `FilePath`.
+    /// The `path` might (somehow) technically be an invalid UTF-8 string,
+    /// even though all components of a valid `FilePath` are valid UTF-8 strings.
+    pub(crate) unsafe fn from_path(path: &Path) -> Option<&Self> {
+        debug_assert!(
+            !path.as_os_str().is_empty(),
+            "empty `FilePath`'s are invalid"
+        );
+        Some(&*(path.as_os_str().to_str()? as *const str as *const FilePath))
+    }
+
+    /// The caller guarantees `path` is a non-empty UTF-8 string and a valid file path.
     /// In this case it is safe to directly convert a non-empty UTF-8 `OsStr` to a `FilePath`.
-    pub(crate) unsafe fn from_path(path: &Path) -> &Self {
-        debug_assert!(!path.as_os_str().is_empty());
-        &*(path.as_os_str() as *const OsStr as *const str as *const FilePath)
+    pub(crate) unsafe fn from_path_unchecked(path: &Path) -> &Self {
+        debug_assert!(
+            !path.as_os_str().is_empty(),
+            "empty `FilePath`'s are invalid"
+        );
+        &*(path
+            .as_os_str()
+            .to_str()
+            .unwrap_unchecked_dbg_msg("tried to create a `FilePath` from an invalid UTF-8 path")
+            as *const str as *const FilePath)
     }
+}
 
-    fn validate_filepath(path: &Path) -> Result<(), FilePathError> {
-        if iterate_path(path)? {
-            Ok(())
-        } else {
-            Err(FilePathError::EmptyPath)
-        }
-    }
+impl<'a> TryFrom<&'a Path> for &'a FilePath {
+    type Error = FilePathError;
 
-    fn is_valid_filepath(path: &Path) -> bool {
-        match iterate_path(path) {
-            Ok(true) => true,
-            _ => false,
-        }
+    fn try_from(value: &'a Path) -> Result<Self, Self::Error> {
+        FilePath::new(value)
     }
 }
 
