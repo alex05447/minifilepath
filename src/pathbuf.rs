@@ -146,9 +146,9 @@ impl FilePathBuf {
             .unwrap_or(Some(file_name))
     }
 
-    /// Returns the file stem portion of the [`FilePathBuf`] (i.e. the non-extension part of the last/leaf component).
+    /// Returns the extension portion of the [`FilePathBuf`] (i.e. the extension part of the last/leaf component).
     ///
-    /// NOTE: this differs from standard library behaviour. Also see [`file_stem_and_extension`].
+    /// NOTE: this differs from standard library behaviour. Also see [`file_stem_and_extension()`].
     ///
     /// E.g.
     /// ```
