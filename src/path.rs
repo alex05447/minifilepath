@@ -57,10 +57,11 @@ impl FilePath {
             validate_path(path.as_ref()).is_ok(),
             "tried to create a `FilePath` from an invalid path"
         );
-        Self::from_path_unchecked(path.as_ref())
+        unsafe { Self::from_path_unchecked(path.as_ref()) }
     }
 
     /// Returns the length in bytes of the [`FilePath`]. Always > 0.
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.0.len()
     }
@@ -144,7 +145,7 @@ impl FilePath {
     /// The caller guarantees `path` is a valid file path.
     /// In this case it is safe to directly convert a `NonEmptyStr` to a `FilePath`.
     pub(crate) unsafe fn from_str(path: &NonEmptyStr) -> &Self {
-        &*(path.as_str() as *const str as *const FilePath)
+        unsafe { &*(path.as_str() as *const str as *const FilePath) }
     }
 
     /// The caller guarantees `path` is non-empty and a valid `FilePath`.
@@ -155,7 +156,7 @@ impl FilePath {
             !path.as_os_str().is_empty(),
             "empty `FilePath`'s are invalid"
         );
-        Some(&*(path.as_os_str().to_str()? as *const str as *const FilePath))
+        Some(unsafe { &*(path.as_os_str().to_str()? as *const str as *const FilePath) })
     }
 
     /// The caller guarantees `path` is a non-empty UTF-8 string and a valid file path.
@@ -165,11 +166,13 @@ impl FilePath {
             !path.as_os_str().is_empty(),
             "empty `FilePath`'s are invalid"
         );
-        &*(path
-            .as_os_str()
-            .to_str()
-            .unwrap_unchecked_dbg_msg("tried to create a `FilePath` from an invalid UTF-8 path")
-            as *const str as *const FilePath)
+        unsafe {
+            &*(path
+                .as_os_str()
+                .to_str()
+                .unwrap_unchecked_dbg_msg("tried to create a `FilePath` from an invalid UTF-8 path")
+                as *const str as *const FilePath)
+        }
     }
 }
 
@@ -183,7 +186,7 @@ impl<'a> TryFrom<&'a Path> for &'a FilePath {
 
 impl AsRef<FilePath> for FilePath {
     fn as_ref(&self) -> &FilePath {
-        &self
+        self
     }
 }
 

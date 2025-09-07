@@ -56,10 +56,11 @@ impl FilePathBuf {
             Self::is_valid_filepath(&path),
             "tried to create a `FilePathBuf` from an invalid path `String`"
         );
-        Self(NonEmptyString::new_unchecked(path))
+        Self(unsafe { NonEmptyString::new_unchecked(path) })
     }
 
     /// Returns the length in bytes of the [`FilePathBuf`]. Always > 0.
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.0.len()
     }
@@ -129,7 +130,7 @@ impl FilePathBuf {
 
     /// Returns the file stem portion of the [`FilePathBuf`] (i.e. the non-extension part of the last/leaf component).
     ///
-    /// NOTE: this differs from standard library behaviour. Also see [`file_stem_and_extension`].
+    /// NOTE: this differs from standard library behaviour. Also see [`file_stem_and_extension()`].
     ///
     /// E.g.
     /// ```
@@ -163,12 +164,11 @@ impl FilePathBuf {
             .map(|file_stem_and_extension| file_stem_and_extension.extension)
     }
 
+    /// Used to debug validate the `path` in `new_unchecked()`.
+    #[cfg(debug_assertions)]
     fn is_valid_filepath(path: &str) -> bool {
-        if let Some(path_) = Self::new(&path).ok() {
-            path_.as_str() == path
-        } else {
-            false
-        }
+        // `path` is a valid `FilePathBuf` if a `FilePathBuf` created from it has the same string representation.
+        Self::new(path).is_ok_and(|path_| path_.as_str() == path)
     }
 }
 
@@ -384,7 +384,7 @@ mod tests {
             let mut valid_path = FilePathBuf::new(&valid_path).unwrap().into_builder();
             assert_eq!(valid_path.len(), MAX_PATH_LEN);
             assert_eq!(
-                valid_path.push(&path_piece).err().unwrap(),
+                valid_path.push(path_piece).err().unwrap(),
                 FilePathError::PathTooLong(MAX_PATH_LEN + 2)
             );
         }

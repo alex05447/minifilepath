@@ -46,7 +46,9 @@ fn next_impl<'a>(
 }
 
 /// The caller guarantees `path` is a canonical `FilePath`.
-pub(crate) fn pop_path_component_front(path: &FilePath) -> (FilePathComponent, Option<&FilePath>) {
+pub(crate) fn pop_path_component_front(
+    path: &FilePath,
+) -> (FilePathComponent<'_>, Option<&FilePath>) {
     if let Some((comp, path)) = path.as_str().split_once(SEPARATOR_CHAR) {
         (
             unsafe { NonEmptyStr::new_unchecked(comp) },
@@ -58,7 +60,9 @@ pub(crate) fn pop_path_component_front(path: &FilePath) -> (FilePathComponent, O
 }
 
 /// The caller guarantees `path` is a canonical `FilePath`.
-pub(crate) fn pop_path_component_back(path: &FilePath) -> (FilePathComponent, Option<&FilePath>) {
+pub(crate) fn pop_path_component_back(
+    path: &FilePath,
+) -> (FilePathComponent<'_>, Option<&FilePath>) {
     if let Some((path, comp)) = path.as_str().rsplit_once(SEPARATOR_CHAR) {
         (
             unsafe { NonEmptyStr::new_unchecked(comp) },

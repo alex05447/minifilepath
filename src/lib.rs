@@ -45,14 +45,12 @@ use {
 /// - components which end in a space (`' '`) or period (`'.'`),
 /// - components which contain invalid characters (`'\'`, `'/'`, `':'`, `'*'`, `'?'`, `'"'`, `'<'`, `'>'`, `'|'`) or ASCII control characters,
 /// - components which are reserved file names (case-insensitive) or reserved file names with an extension
-/// (`"AUX"`, `"COM?"`, `"CON"`, `"LPT?"`, `"NUL"`, `"PRN"`, where `?` is one of ASCII digits [`1` .. `9`]).
+///   (`"AUX"`, `"COM?"`, `"CON"`, `"LPT?"`, `"NUL"`, `"PRN"`, where `?` is one of ASCII digits [`1` .. `9`]).
 pub fn is_valid_path_component(component: FilePathComponent<'_>) -> bool {
-    if component == "." {
-        return false;
-    } else if component == ".." {
-        return false;
+    if component == "." || component == ".." {
+        false
     } else {
-        validate_path_component(component, || PathBuf::new()).is_ok()
+        validate_path_component(component, PathBuf::new).is_ok()
     }
 }
 
@@ -75,7 +73,7 @@ pub struct FileStemAndExtension<'a> {
 ///
 /// NOTE: this differs from the standard library w.r.t. path components which start with a period.
 /// Standard library considers a file_name like `".gitignore"` to have a file stem part `".gitignore"` and no extension.
-/// This function simply treats anything past the last period as an extension, always.
+/// This function, however, simply treats anything past the last period as an extension, always.
 ///
 /// E.g.:
 /// - `".txt"` -> `Some((None, "txt"))` (NOTE: not `None`)
@@ -96,19 +94,15 @@ pub fn file_stem_and_extension(
         // ".txt" -> ("", "txt") -> `Some((None, "txt"))`
         // "foo.txt" -> ("foo", "txt") -> `Some((Some("foo"), "txt"))`
         // "foo.bar.txt" -> ("foo.bar", "txt") -> `Some((Some("foo.bar"), "txt"))`
-        if let Some(extension) = NonEmptyStr::new(unsafe { str::from_utf8_unchecked(extension) }) {
-            Some(FileStemAndExtension {
+        // "foo." -> invalid path (cannot end with a period), but this returns `None`
+        NonEmptyStr::new(unsafe { str::from_utf8_unchecked(extension) }).map(|extension| {
+            FileStemAndExtension {
                 file_stem: NonEmptyStr::new(unsafe { str::from_utf8_unchecked(file_name) }),
                 extension,
-            })
-
-        // "foo." -> invalid path (cannot end with a period), but this returns `None`
-        } else {
-            None
-        }
-
-    // "foo" -> ("foo", None) -> `None`
+            }
+        })
     } else {
+        // "foo" -> ("foo", None) -> `None`
         None
     }
 }

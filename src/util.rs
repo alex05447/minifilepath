@@ -44,7 +44,7 @@ pub(crate) fn validate_path_component<F: FnOnce() -> PathBuf>(
 }
 
 /// Like `str::split_once(...)`, but splits (case-insensitively) on one of the Windows reserved file names.
-fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> {
+fn split_at_reserved_name(component: FilePathComponent<'_>) -> Option<(&str, &str)> {
     // None of the reserved name match sequences overlap, except `CON` / `COM?`, which diverge on their 3rd matched character,
     // which allows us to implement this efficiently by only ever tracking at most a single match sequence.
 
@@ -66,9 +66,9 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
         /// Matched a char, completed a match.
         /// Contains the tuple of
         /// - offset in bytes back from current character to the start of the match;
-        ///     `2` for most, `3` for `COM?` / `LPT?`, `5` for `CONIN$`, `6` for `CONOUT$`;
+        ///   `2` for most, `3` for `COM?` / `LPT?`, `5` for `CONIN$`, `6` for `CONOUT$`;
         /// - offset in bytes back from the current character to the end of the match;
-        ///     always `0` except when matching `CON?`, in which case it's `1` (to support also matching `CONIN$` / `CONOUT$`).
+        ///   always `0` except when matching `CON?`, in which case it's `1` (to support also matching `CONIN$` / `CONOUT$`).
         AcceptedAndFinished((usize, usize)),
     }
 
@@ -86,6 +86,7 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
         }
     }
 
+    #[allow(clippy::upper_case_acronyms)]
     enum AUX {
         A,
         U,
@@ -111,6 +112,7 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
         }
     }
 
+    #[allow(clippy::upper_case_acronyms)]
     enum NUL {
         N,
         U,
@@ -136,6 +138,7 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
         }
     }
 
+    #[allow(clippy::upper_case_acronyms)]
     enum PRN {
         P,
         R,
@@ -161,6 +164,7 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
         }
     }
 
+    #[allow(clippy::upper_case_acronyms)]
     enum CONOrMOrINOrOUT {
         C,
         O,
@@ -204,45 +208,46 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
                     }
                     _ => return AcceptResult::AcceptedAndFinished((3, 1)),
                 },
-                Self::M => match c {
-                    '0'..='9' => return AcceptResult::AcceptedAndFinished((3, 0)),
-                    _ => {}
-                },
-                Self::NI => match c {
-                    'n' => {
+                Self::M => {
+                    if let '0'..='9' = c {
+                        return AcceptResult::AcceptedAndFinished((3, 0));
+                    }
+                }
+                Self::NI => {
+                    if c == 'n' {
                         *self = Self::NIN;
                         return AcceptResult::Accepted;
                     }
-                    _ => {}
-                },
-                Self::NIN => match c {
-                    '$' => return AcceptResult::AcceptedAndFinished((5, 0)),
-                    _ => {}
-                },
-                Self::NO => match c {
-                    'u' => {
+                }
+                Self::NIN => {
+                    if c == '$' {
+                        return AcceptResult::AcceptedAndFinished((5, 0));
+                    }
+                }
+                Self::NO => {
+                    if c == 'u' {
                         *self = Self::NOU;
                         return AcceptResult::Accepted;
                     }
-                    _ => {}
-                },
-                Self::NOU => match c {
-                    't' => {
+                }
+                Self::NOU => {
+                    if c == 't' {
                         *self = Self::NOUT;
                         return AcceptResult::Accepted;
                     }
-                    _ => {}
-                },
-                Self::NOUT => match c {
-                    '$' => return AcceptResult::AcceptedAndFinished((6, 0)),
-                    _ => {}
-                },
+                }
+                Self::NOUT => {
+                    if c == '$' {
+                        return AcceptResult::AcceptedAndFinished((6, 0));
+                    }
+                }
             }
 
             AcceptResult::NoMatch
         }
     }
 
+    #[allow(clippy::upper_case_acronyms)]
     enum LPT {
         L,
         P,
@@ -264,16 +269,18 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
                         return AcceptResult::Accepted;
                     }
                 }
-                Self::T => match c {
-                    '0'..='9' => return AcceptResult::AcceptedAndFinished((3, 0)),
-                    _ => {}
-                },
+                Self::T => {
+                    if let '0'..='9' = c {
+                        return AcceptResult::AcceptedAndFinished((3, 0));
+                    }
+                }
             }
 
             AcceptResult::NoMatch
         }
     }
 
+    #[allow(clippy::upper_case_acronyms)]
     enum ReservedName {
         AUX(AUX),
         NUL(NUL),
@@ -295,10 +302,7 @@ fn split_at_reserved_name(component: FilePathComponent) -> Option<(&str, &str)> 
 
         fn finish(self) -> Option<(usize, usize)> {
             match self {
-                Self::CONOrMOrINOrOUT(conormorinorout) => match conormorinorout {
-                    CONOrMOrINOrOUT::N => Some((2, 0)),
-                    _ => None,
-                },
+                Self::CONOrMOrINOrOUT(CONOrMOrINOrOUT::N) => Some((2, 0)),
                 _ => None,
             }
         }
@@ -463,7 +467,7 @@ mod tests {
     }
 
     fn validate_path_component_(component: &NonEmptyStr) -> Result<(), FilePathError> {
-        validate_path_component(component, || PathBuf::new())
+        validate_path_component(component, PathBuf::new)
     }
 
     #[allow(non_snake_case)]

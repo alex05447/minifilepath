@@ -82,6 +82,7 @@ fn append_file_path_to_string(path: &FilePath, string: &mut String) -> Result<()
     let mut path_len = string.len();
 
     for component in path.components() {
+        // Count the separator.
         if path_len != 0 {
             path_len += 1;
         }
